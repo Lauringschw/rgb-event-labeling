@@ -50,7 +50,18 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    raw_path = Path("/home/lau/Documents/test_1/rock/r_1/recording_2026-04-02_14-31-40.raw")
+    index = 1
+    base = Path("/home/lau/Documents/test_1")
+
+    category = "rock"   # "rock" or "paper" or "scissor"
+    prefix = {"rock": "r", "paper": "p", "scissor": "s"}[category]
+
+    pattern = base / f"{category}/{prefix}_{index}" / "recording_2026*.raw"
+
+    paths = sorted(pattern.parent.glob(pattern.name))
+    if not paths:
+        raise FileNotFoundError(f"No .raw files matched: {pattern}")
+    raw_path = paths[0]
 
     timestamps = extract_trigger_timestamps(raw_path)
 
