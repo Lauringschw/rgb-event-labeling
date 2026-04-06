@@ -11,7 +11,12 @@ base = Path("/home/lau/Documents/test_1")
 category = "rock"   # "rock" or "paper" or "scissor"
 prefix = {"rock": "r", "paper": "p", "scissor": "s"}[category]
 
-frame = np.fromfile(f'/home/lau/Documents/test_1/{category}/{prefix}_{index}/Basler_a2A1920-160ucPRO__40648144__20260402_143142134_{frame_num:04d}.raw', dtype=np.uint8)
+frame_pattern = base / f"{category}/{prefix}_{index}" / f"Basler_*_{frame_num:04d}.raw"
+matches = sorted(frame_pattern.parent.glob(frame_pattern.name))
+if not matches:
+	raise FileNotFoundError(f"No frame files matched: {frame_pattern}")
+
+frame = np.fromfile(matches[0], dtype=np.uint8)
 frame = frame.reshape(1200, 1920)
 
 plt.imshow(frame, cmap='gray')
