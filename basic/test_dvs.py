@@ -19,9 +19,10 @@ event_count = 0
 first_t = None
 last_t = None
 
+# ev has 'x', 'y', 't', 'p'
 for ev in mv_it:
     if first_t is None:
-        first_t = ev["t"][0]
+        first_t = ev["t"][0] 
     last_t = ev["t"][-1]
     event_count += len(ev)
 
