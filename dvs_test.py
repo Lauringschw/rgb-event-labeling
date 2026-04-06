@@ -1,8 +1,19 @@
+from pathlib import Path
 from metavision_core.event_io import EventsIterator
 
-path = '/home/lau/Documents/test_1/rock/r_1/recording_2026-04-02_14-31-40.raw'
+index = 1
+base = Path("/home/lau/Documents/test_1")
 
-mv_it = EventsIterator(path)
+category = "rock"   # "rock" or "paper" or "scissor"
+prefix = {"rock": "r", "paper": "p", "scissor": "s"}[category]
+
+pattern = base / f"{category}/{prefix}_{index}" / "recording_2026*.raw"
+
+paths = sorted(pattern.parent.glob(pattern.name))
+if not paths:
+    raise FileNotFoundError(f"No .raw files matched: {pattern}")
+
+mv_it = EventsIterator(str(paths[0]))
 
 event_count = 0
 first_t = None
@@ -10,8 +21,8 @@ last_t = None
 
 for ev in mv_it:
     if first_t is None:
-        first_t = ev['t'][0]
-    last_t = ev['t'][-1]
+        first_t = ev["t"][0]
+    last_t = ev["t"][-1]
     event_count += len(ev)
 
 print(f"total events: {event_count}")
