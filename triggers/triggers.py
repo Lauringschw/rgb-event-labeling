@@ -5,13 +5,8 @@ import numpy as np
 
 def extract_trigger_timestamps(raw_path):
     """
-    Extract Basler frame timestamps from DVS trigger channel.
-    
-    Args:
-        raw_path: Path to .raw recording file
-        
-    Returns:
-        numpy array of timestamps (µs) for each RGB frame
+    Extract Basler frame timestamps, handling duplicates.
+    Returns timestamps for valid RGB frames only (Pylon recording window).
     """
     device = DeviceDiscovery.open_raw_file(str(raw_path))
     
@@ -22,7 +17,7 @@ def extract_trigger_timestamps(raw_path):
     
     i_ext_trigger = device.get_i_event_ext_trigger_decoder()
     if not i_ext_trigger:
-        raise RuntimeError("No external trigger decoder found in recording")
+        raise RuntimeError("No external trigger decoder found")
     
     i_ext_trigger.add_event_buffer_callback(trigger_callback)
     
@@ -42,38 +37,46 @@ def extract_trigger_timestamps(raw_path):
     i_events_stream.stop()
     
     if len(all_triggers) == 0:
-        raise ValueError("No triggers found in recording")
+        raise ValueError("No triggers found")
     
     # sort and filter rising edges
     all_triggers = sorted(all_triggers, key=lambda t: t['t'])
     rising = [t for t in all_triggers if t['p'] == 1]
     
-    # deduplicate by timestamp
+    print(f"Total triggers: {len(all_triggers)}")
+    print(f"Rising edges: {len(rising)}")
+    
+    # deduplicate by timestamp (handles software bug)
     seen = set()
     unique = []
     for t in rising:
         if t['t'] not in seen:
-            unique.append(t)
+            unique.append(t['t'])
             seen.add(t['t'])
     
-    trigger_times = np.array([t['t'] for t in unique])
+    trigger_times = np.array(unique)
     
-    print(f"Total triggers: {len(all_triggers)}")
-    print(f"Rising edges: {len(rising)}")
-    print(f"Unique rising edges: {len(unique)}")
-    print(f"Time range: {trigger_times[0]/1e6:.3f}s to {trigger_times[-1]/1e6:.3f}s")
-    print(f"Duration: {(trigger_times[-1] - trigger_times[0])/1e6:.2f}s")
+    print(f"Unique triggers: {len(trigger_times)}")
+    print(f"\nFirst trigger: {trigger_times[0]/1e6:.3f}s (Pylon START)")
+    print(f"Last trigger: {trigger_times[-1]/1e6:.3f}s (Pylon STOP)")
+    print(f"Recording duration: {(trigger_times[-1] - trigger_times[0])/1e6:.2f}s")
+    print(f"RGB frames captured: {len(trigger_times)}")
+    
+    # calculate framerate
+    if len(trigger_times) > 1:
+        intervals = np.diff(trigger_times)
+        avg_interval = np.mean(intervals)
+        fps = 1e6 / avg_interval
+        print(f"Average frame interval: {avg_interval:.1f} µs ({fps:.1f} fps)")
     
     return trigger_times
 
 
 if __name__ == "__main__":
-    # example usage
     raw_path = Path("/home/lau/Documents/test_1/rock/r_1/recording_2026-04-02_14-31-40.raw")
     
     timestamps = extract_trigger_timestamps(raw_path)
     
-    # save to same directory as raw file
     output_path = raw_path.parent / "basler_frame_timestamps.npy"
     np.save(output_path, timestamps)
     print(f"\nSaved to: {output_path}")
