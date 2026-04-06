@@ -1,3 +1,4 @@
+# eventTriggerChart.py
 from metavision_hal import DeviceDiscovery
 import numpy as np
 
