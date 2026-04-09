@@ -5,7 +5,11 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import sys
-sys.path.append('..')
+from pathlib import Path
+
+# Add rqs_shared to Python path
+sys.path.insert(0, str(Path(__file__).parent.parent / 'rqs_shared'))
+
 from dataset_loader import GestureDataset
 
 class GestureCNN(nn.Module):
