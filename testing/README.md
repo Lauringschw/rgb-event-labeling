@@ -1,8 +1,10 @@
-# rgb_test.py
+# test_rgb.py
 
 View one frame from Basler in gray scale
 
-# dvs_test.py
+# test_dvs.py
+
+**Explanation of EventsIterator and event instances**
 
 ```python
 mv_it = EventsIterator(str(paths[0]))
@@ -10,7 +12,7 @@ mv_it = EventsIterator(str(paths[0]))
 for ev in mv_it:
 ```
 
-one instance of ev:
+**One instance of ev**:
 
 - ev["x"] → array([120, 305, 89, ...]) # pixel x-coordinates
 - ev["y"] → array([200, 150, 340, ...]) # pixel y-coordinates
@@ -19,7 +21,7 @@ one instance of ev:
 
 Each iteration gives you one batch of events (10k-100k events)
 
-Example:
+**Example**:
 
 ```python
 # Batch 1: 50k events from t=6154 to t=50200

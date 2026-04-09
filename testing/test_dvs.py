@@ -1,11 +1,11 @@
 from pathlib import Path
 from metavision_core.event_io import EventsIterator
 
-index = 1
-base = Path("/home/lau/Documents/test_1")
-
-category = "rock"   # "rock" or "paper" or "scissor"
+index = 1 # set this
+category = "rock"   # set this to either "rock" or "paper" or "scissor"
 prefix = {"rock": "r", "paper": "p", "scissor": "s"}[category]
+
+base = Path("/home/lau/Documents/test_1")
 
 pattern = base / f"{category}/{prefix}_{index}" / "recording_2026*.raw"
 

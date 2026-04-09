@@ -1,4 +1,3 @@
-# extract_trigger_timestamps.py
 from pathlib import Path
 import numpy as np
 from metavision_core.event_io import RawReader
@@ -22,7 +21,7 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
                 # Keep only rising edges
                 trigger_times.extend(t["t"] for t in triggers if t["p"] == 1)
 
-                # Important: clear them, otherwise you will read them again next loop
+                # Clear them, otherwise will read them again next loop
                 reader.clear_ext_trigger_events()
     finally:
         reader.reset()

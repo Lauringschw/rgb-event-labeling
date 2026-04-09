@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-index = 1
-frame_num = 1
+index = 1 # set this
+frame_num = 1 # set this
 base = Path("/home/lau/Documents/test_1")
 
 category = "rock"   # "rock" or "paper" or "scissor"
