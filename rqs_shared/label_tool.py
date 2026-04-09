@@ -2,20 +2,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button
 import os
+from pathlib import Path
 
 class GestureLabelingTool:
     def __init__(self, recording_folder):
-        self.recording_folder = recording_folder
+        self.recording_folder = Path(recording_folder)
         
-        # load trigger timestamps
-        self.trigger_times = np.load('basler_frame_timestamps.npy')
+        # load trigger timestamps from recording folder
+        trigger_path = self.recording_folder / 'basler_frame_timestamps.npy'
+        self.trigger_times = np.load(trigger_path)
         self.n_frames = len(self.trigger_times)
         
         # load basler files
         self.basler_files = sorted([
-            f for f in os.listdir(recording_folder) 
+            f for f in os.listdir(self.recording_folder) 
             if f.startswith('Basler') and f.endswith('.raw')
         ])[:self.n_frames]  # only use frames with triggers
+        
+        if len(self.basler_files) == 0:
+            raise FileNotFoundError(f"No Basler .raw files found in {self.recording_folder}")
         
         self.current_frame = 0
         self.go_frame = None
@@ -30,8 +35,20 @@ class GestureLabelingTool:
         self.load_frame(0)
         
     def load_frame(self, frame_idx):
-        frame_path = os.path.join(self.recording_folder, self.basler_files[frame_idx])
-        frame = np.fromfile(frame_path, dtype=np.uint8).reshape(1200, 1920)
+        # bounds check
+        frame_idx = max(0, min(frame_idx, self.n_frames - 1))
+        
+        if frame_idx >= len(self.basler_files):
+            print(f"Warning: frame {frame_idx} out of range (only {len(self.basler_files)} files)")
+            return
+        
+        frame_path = self.recording_folder / self.basler_files[frame_idx]
+        
+        try:
+            frame = np.fromfile(frame_path, dtype=np.uint8).reshape(1200, 1920)
+        except Exception as e:
+            print(f"Error loading frame {frame_idx} from {frame_path}: {e}")
+            return
         
         if self.img_display is None:
             self.img_display = self.ax.imshow(frame, cmap='gray')
@@ -43,7 +60,7 @@ class GestureLabelingTool:
         self.fig.canvas.draw_idle()
     
     def update_title(self):
-        title = f"Frame {self.current_frame}/{self.n_frames-1} | "
+        title = f"{self.recording_folder.name} | Frame {self.current_frame}/{self.n_frames-1} | "
         title += f"Time: {self.trigger_times[self.current_frame]/1e6:.3f}s"
         
         if self.go_frame is not None:
@@ -61,17 +78,25 @@ class GestureLabelingTool:
         self.slider.on_changed(lambda val: self.load_frame(int(val)))
         
         # buttons
-        ax_go = plt.axes([0.15, 0.05, 0.15, 0.04])
+        ax_go = plt.axes([0.1, 0.05, 0.12, 0.04])
         self.btn_go = Button(ax_go, 'Mark GO')
         self.btn_go.on_clicked(lambda _: self.mark_go())
         
-        ax_initial = plt.axes([0.35, 0.05, 0.15, 0.04])
+        ax_initial = plt.axes([0.24, 0.05, 0.12, 0.04])
         self.btn_initial = Button(ax_initial, 'Mark t_initial')
         self.btn_initial.on_clicked(lambda _: self.mark_t_initial())
         
-        ax_save = plt.axes([0.7, 0.05, 0.15, 0.04])
+        ax_save = plt.axes([0.52, 0.05, 0.12, 0.04])
         self.btn_save = Button(ax_save, 'Save Labels')
         self.btn_save.on_clicked(lambda _: self.save_labels())
+        
+        ax_save_next = plt.axes([0.66, 0.05, 0.12, 0.04])
+        self.btn_save_next = Button(ax_save_next, 'Save & Next')
+        self.btn_save_next.on_clicked(lambda _: self.save_and_next())
+        
+        ax_next = plt.axes([0.8, 0.05, 0.08, 0.04])
+        self.btn_next = Button(ax_next, 'Next →')
+        self.btn_next.on_clicked(lambda _: self.next_recording())
     
     def mark_go(self):
         self.go_frame = self.current_frame
@@ -86,26 +111,79 @@ class GestureLabelingTool:
     def save_labels(self):
         if self.go_frame is None or self.t_initial_frame is None:
             print("ERROR: must mark both GO and t_initial before saving")
-            return
+            return False
         
         labels = {
             'go_frame': self.go_frame,
             'go_time_us': int(self.trigger_times[self.go_frame]),
             't_initial_frame': self.t_initial_frame,
             't_initial_time_us': int(self.trigger_times[self.t_initial_frame]),
-            'recording_folder': self.recording_folder
+            'recording_folder': str(self.recording_folder)
         }
         
         # save to file
-        save_path = os.path.join(self.recording_folder, 'labels.npy')
+        save_path = self.recording_folder / 'labels.npy'
         np.save(save_path, labels)
         print(f"\nLabels saved to {save_path}")
         print(f"  GO: frame {labels['go_frame']} → {labels['go_time_us']} µs")
         print(f"  t_initial: frame {labels['t_initial_frame']} → {labels['t_initial_time_us']} µs")
+        return True
+    
+    def get_next_recording(self):
+        """Find the next recording folder to label"""
+       
+        folder_name = self.recording_folder.name
+        prefix = folder_name.split('_')[0]
+        current_index = int(folder_name.split('_')[1])
+        
+        gesture_map = {'r': 'rock', 'p': 'paper', 's': 'scissor'}
+        gestures = ['rock', 'paper', 'scissor']
+        current_gesture = gesture_map[prefix]
+        
+        base = self.recording_folder.parent.parent  # go up to test_1 directory
+        
+        next_index = current_index + 1
+        next_folder = base / current_gesture / f"{prefix}_{next_index}"
+        
+        if next_folder.exists():
+            return next_folder
+        
+        # try first index of next gesture
+        gesture_idx = gestures.index(current_gesture)
+        if gesture_idx < len(gestures) - 1:
+            next_gesture = gestures[gesture_idx + 1]
+            next_prefix = next_gesture[0]
+            next_folder = base / next_gesture / f"{next_prefix}_1"
+            
+            if next_folder.exists():
+                return next_folder
+        
+        # no more recordings
+        return None
+    
+    def next_recording(self):
+        """Load next recording folder"""
+        next_folder = self.get_next_recording()
+        
+        if next_folder is None:
+            print("✓ No more recordings to label!")
+            return
+        
+        print(f"\n→ Loading next recording: {next_folder}")
+        plt.close(self.fig)
+        
+        # create new tool instance with next folder
+        new_tool = GestureLabelingTool(str(next_folder))
+        new_tool.show()
+    
+    def save_and_next(self):
+        """Save labels and move to next recording"""
+        if self.save_labels():
+            self.next_recording()
     
     def show(self):
         plt.show()
 
 if __name__ == '__main__':
-    tool = GestureLabelingTool('/home/lau/Documents/test_1/rock/r_3')
+    tool = GestureLabelingTool('/home/lau/Documents/test_1/paper/1_20')
     tool.show()
