@@ -102,13 +102,13 @@ camera_basler.StartGrabbing(pylon.GrabStrategy_OneByOne)
 
 basler_timestamps = []
 frame_idx = 0
-start_time = time.time()
+recording_start_time = time.time()
 
 print("\n✓ BOTH CAMERAS RECORDING")
-print("  Basler Line2 → Prophesee trigger input")
-print("  Press Ctrl+C to stop Basler\n")
+print("  Recording 2 seconds before countdown...\n")
 
 stop_recording = False
+go_timestamp_system = None
 
 def prophesee_poll():
     while not stop_recording:
@@ -121,54 +121,99 @@ def prophesee_poll():
 prophesee_thread = threading.Thread(target=prophesee_poll, daemon=True)
 prophesee_thread.start()
 
+def grab_frames():
+    """Background thread to continuously grab Basler frames"""
+    global frame_idx
+    while not stop_recording:
+        try:
+            if camera_basler.IsGrabbing():
+                grab_result = camera_basler.RetrieveResult(100, pylon.TimeoutHandling_Return)
+                
+                if grab_result and grab_result.GrabSucceeded():
+                    img = grab_result.Array
+                    frame_path = output_dir / f"Basler_acA1920-155um__{frame_idx}.raw"
+                    img.tofile(frame_path)
+                    
+                    timestamp_us = int(grab_result.TimeStamp)
+                    basler_timestamps.append(timestamp_us)
+                    
+                    frame_idx += 1
+                    grab_result.Release()
+        except:
+            break
+
+# Start frame grabbing in background
+grab_thread = threading.Thread(target=grab_frames, daemon=True)
+grab_thread.start()
+
 try:
-    while True:
-        if camera_basler.IsGrabbing():
-            grab_result = camera_basler.RetrieveResult(100, pylon.TimeoutHandling_ThrowException)
-            
-            if grab_result.GrabSucceeded():
-                img = grab_result.Array
-                frame_path = output_dir / f"Basler_acA1920-155um__{frame_idx}.raw"
-                img.tofile(frame_path)
-                
-                timestamp_us = int(grab_result.TimeStamp)
-                basler_timestamps.append(timestamp_us)
-                
-                frame_idx += 1
-                
-                if frame_idx % 140 == 0:
-                    elapsed = time.time() - start_time
-                    print(f"Frames: {frame_idx}, Time: {elapsed:.1f}s")
-                
-                grab_result.Release()
-        
+    # Record 2 seconds before countdown
+    time.sleep(2.0)
+    
+    # COUNTDOWN
+    print("3...")
+    time.sleep(1.0)
+    print("2...")
+    time.sleep(1.0)
+    print("1...")
+    time.sleep(1.0)
+    print("GO! 🎯")
+    
+    # Record GO timestamp
+    go_timestamp_system = time.time()
+    
+    # Record 2 more seconds after GO
+    time.sleep(2.0)
+    
+    print("\n✓ Recording sequence complete (2s + countdown + 2s)")
+    
 except KeyboardInterrupt:
-    print("\n\n⏹ Stopping Basler...")
-    camera_basler.StopGrabbing()
-    end_time = time.time()
-    print(f"✓ Basler stopped ({frame_idx} frames)")
-    
-    input("\n   Press ENTER to stop Prophesee...")
-    
-    print("  Flushing event buffer...")
-    time.sleep(2)
-    
-    stop_recording = True
-    time.sleep(0.5)
-    i_events_stream.stop()
-    i_events_stream.stop_log_raw_data()
-    print("✓ Prophesee stopped")
+    print("\n\n⚠ Recording interrupted by user")
+
+# Stop recording
+print("\n⏹ Stopping cameras...")
+stop_recording = True
+time.sleep(0.5)  # Let threads finish
+
+camera_basler.StopGrabbing()
+end_time = time.time()
+print(f"✓ Basler stopped ({frame_idx} frames)")
+
+print("  Flushing Prophesee buffer...")
+time.sleep(2)
+
+i_events_stream.stop()
+i_events_stream.stop_log_raw_data()
+print("✓ Prophesee stopped")
 
 # Cleanup
 camera_basler.Close()
 
+# Save timestamps
 timestamps_path = output_dir / "basler_frame_timestamps.npy"
 np.save(timestamps_path, np.array(basler_timestamps))
 
-elapsed = end_time - start_time
-print(f"\n✓ Recording complete!")
-print(f"  Duration: {elapsed:.1f}s")
-print(f"  Basler: {frame_idx} frames ({frame_idx/elapsed:.1f} fps)")
-print(f"  Prophesee: {prophesee_output}")
-print(f"  Check triggers in Metavision Viewer")
-print(f"  Saved to: {output_dir}")
+# Save GO timestamp metadata
+if go_timestamp_system is not None:
+    metadata = {
+        'go_timestamp_system': go_timestamp_system,
+        'recording_start_time': recording_start_time,
+        'go_offset_from_start': go_timestamp_system - recording_start_time,
+        'recording_end_time': end_time,
+        'total_frames': frame_idx,
+        'expected_go_frame': int((go_timestamp_system - recording_start_time) * 140)  # Approx frame at GO
+    }
+    metadata_path = output_dir / "recording_metadata.npy"
+    np.save(metadata_path, metadata)
+    
+    elapsed = end_time - recording_start_time
+    print(f"\n✓ Recording complete!")
+    print(f"  Total duration: {elapsed:.1f}s")
+    print(f"  GO occurred at: {go_timestamp_system - recording_start_time:.3f}s from start")
+    print(f"  Expected GO frame: ~{metadata['expected_go_frame']}")
+    print(f"  Basler: {frame_idx} frames ({frame_idx/elapsed:.1f} fps)")
+    print(f"  Prophesee: {prophesee_output}")
+    print(f"  Metadata: {metadata_path}")
+    print(f"  Saved to: {output_dir}")
+else:
+    print("\n⚠ Recording interrupted before GO")

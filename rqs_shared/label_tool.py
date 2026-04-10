@@ -13,11 +13,12 @@ class GestureLabelingTool:
         self.trigger_times = np.load(trigger_path)
         self.n_frames = len(self.trigger_times)
         
-        # load basler files
-        self.basler_files = sorted([
-            f for f in os.listdir(self.recording_folder) 
-            if f.startswith('Basler') and f.endswith('.raw')
-        ])[:self.n_frames]  # only use frames with triggers
+        # load basler files - SORT BY FRAME NUMBER, NOT ALPHABETICALLY
+        self.basler_files = sorted(
+            [f for f in os.listdir(self.recording_folder) 
+             if f.startswith('Basler') and f.endswith('.raw')],
+            key=lambda x: int(x.split('__')[1].split('.')[0])  # Extract frame number
+        )[:self.n_frames]
         
         if len(self.basler_files) == 0:
             raise FileNotFoundError(f"No Basler .raw files found in {self.recording_folder}")
@@ -26,13 +27,43 @@ class GestureLabelingTool:
         self.go_frame = None
         self.t_initial_frame = None
         
+        # Load metadata and auto-detect GO frame
+        self.load_go_from_metadata()
+        
         # setup plot
         self.fig, self.ax = plt.subplots(figsize=(12, 8))
         plt.subplots_adjust(bottom=0.25)
         
         self.img_display = None
         self.setup_ui()
-        self.load_frame(0)
+        
+        # Jump to GO frame if available
+        if self.go_frame is not None:
+            self.load_frame(self.go_frame)
+        else:
+            self.load_frame(0)
+    
+    def load_go_from_metadata(self):
+        """Load GO frame from recording metadata"""
+        metadata_path = self.recording_folder / 'recording_metadata.npy'
+        
+        if not metadata_path.exists():
+            print("⚠ No recording_metadata.npy found - GO frame not auto-detected")
+            return
+        
+        try:
+            metadata = np.load(metadata_path, allow_pickle=True).item()
+            expected_go_frame = metadata.get('expected_go_frame')
+            
+            if expected_go_frame is not None:
+                # Use expected frame, bounded by actual frame count
+                self.go_frame = min(expected_go_frame, self.n_frames - 1)
+                print(f"✓ GO frame auto-loaded: frame {self.go_frame}")
+                print(f"  (from metadata: {metadata['go_offset_from_start']:.3f}s after start)")
+            else:
+                print("⚠ No 'expected_go_frame' in metadata")
+        except Exception as e:
+            print(f"⚠ Could not load GO from metadata: {e}")
         
     def load_frame(self, frame_idx):
         # bounds check
@@ -60,8 +91,11 @@ class GestureLabelingTool:
         self.fig.canvas.draw_idle()
     
     def update_title(self):
+        # Calculate time relative to first frame in milliseconds
+        time_relative_ms = (self.trigger_times[self.current_frame] - self.trigger_times[0]) / 1000
+        
         title = f"{self.recording_folder.name} | Frame {self.current_frame}/{self.n_frames-1} | "
-        title += f"Time: {self.trigger_times[self.current_frame]/1e6:.3f}s"
+        title += f"Time: {time_relative_ms:.1f}ms"
         
         if self.go_frame is not None:
             title += f" | GO: frame {self.go_frame}"
@@ -74,7 +108,8 @@ class GestureLabelingTool:
         # slider
         ax_slider = plt.axes([0.15, 0.1, 0.7, 0.03])
         self.slider = Slider(ax_slider, 'Frame', 0, self.n_frames-1, 
-                             valinit=0, valstep=1)
+                             valinit=self.go_frame if self.go_frame is not None else 0, 
+                             valstep=1)
         self.slider.on_changed(lambda val: self.load_frame(int(val)))
         
         # buttons
@@ -85,54 +120,18 @@ class GestureLabelingTool:
         ax_initial = plt.axes([0.24, 0.05, 0.12, 0.04])
         self.btn_initial = Button(ax_initial, 'Mark t_initial')
         self.btn_initial.on_clicked(lambda _: self.mark_t_initial())
-
-        ax_auto = plt.axes([0.38, 0.05, 0.12, 0.04])
-        self.btn_auto = Button(ax_auto, 'Auto-detect GO')
-        self.btn_auto.on_clicked(lambda _: self.detect_go_flash())
         
-        ax_save = plt.axes([0.52, 0.05, 0.12, 0.04])
+        ax_save = plt.axes([0.38, 0.05, 0.12, 0.04])
         self.btn_save = Button(ax_save, 'Save Labels')
         self.btn_save.on_clicked(lambda _: self.save_labels())
         
-        ax_save_next = plt.axes([0.66, 0.05, 0.12, 0.04])
+        ax_save_next = plt.axes([0.52, 0.05, 0.12, 0.04])
         self.btn_save_next = Button(ax_save_next, 'Save & Next')
         self.btn_save_next.on_clicked(lambda _: self.save_and_next())
         
-        ax_next = plt.axes([0.8, 0.05, 0.08, 0.04])
+        ax_next = plt.axes([0.66, 0.05, 0.08, 0.04])
         self.btn_next = Button(ax_next, 'Next →')
         self.btn_next.on_clicked(lambda _: self.next_recording())
-        
-    def detect_go_flash(self):
-        # Phone ROI: bottom-left corner
-        phone_y, phone_h = 900, 250
-        phone_x, phone_w = 50, 450
-        
-        max_brightness = 0
-        max_frame = 0
-        
-        print("Scanning frames for brightness peaks...")
-        for i in range(min(600, self.n_frames)):
-            frame_path = self.recording_folder / self.basler_files[i]
-            frame = np.fromfile(frame_path, dtype=np.uint8).reshape(1200, 1920)
-            
-            roi = frame[phone_y:phone_y+phone_h, phone_x:phone_x+phone_w]
-            brightness = roi.mean()
-            
-            if brightness > max_brightness:
-                max_brightness = brightness
-                max_frame = i
-            
-            # Print every 50 frames
-            if i % 50 == 0:
-                print(f"Frame {i}: ROI brightness = {brightness:.1f}")
-        
-        print(f"\n✓ Brightest frame: {max_frame} with brightness {max_brightness:.1f}")
-        
-        # Set GO frame and update UI
-        self.go_frame = max_frame
-        self.slider.set_val(max_frame)  # Update slider position
-        self.load_frame(max_frame)
-        return True
     
     def mark_go(self):
         self.go_frame = self.current_frame
@@ -221,5 +220,5 @@ class GestureLabelingTool:
         plt.show()
 
 if __name__ == '__main__':
-    tool = GestureLabelingTool('/home/lau/Documents/test_2/scissor/s_1')
+    tool = GestureLabelingTool('/home/lau/Documents/test_2/paper/p_1')
     tool.show()

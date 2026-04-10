@@ -4,12 +4,12 @@ from pathlib import Path
 
 index = 1 # set this
 frame_num = 1 # set this
-base = Path("/home/lau/Documents/test_1")
+base = Path("/home/lau/Documents/test_2")
 
-category = "rock"   # "rock" or "paper" or "scissor"
+category = "paper"   # "rock" or "paper" or "scissor"
 prefix = {"rock": "r", "paper": "p", "scissor": "s"}[category]
 
-frame_pattern = base / f"{category}/{prefix}_{index}" / f"Basler_*_{frame_num:04d}.raw"
+frame_pattern = base / f"{category}/{prefix}_{index}" / f"Basler_*_{frame_num}.raw"
 matches = sorted(frame_pattern.parent.glob(frame_pattern.name))
 if not matches:
 	raise FileNotFoundError(f"No frame files matched: {frame_pattern}")
