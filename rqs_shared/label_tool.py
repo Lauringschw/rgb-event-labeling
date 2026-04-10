@@ -229,21 +229,6 @@ class GestureLabelingTool:
         
         return None
     
-    def next_recording(self):
-        """Load next recording folder"""
-        next_folder = self.get_next_recording()
-        
-        if next_folder is None:
-            print("✓ No more recordings to label!")
-            return
-        
-        print(f"\n→ Loading next recording: {next_folder}")
-        plt.close(self.fig)
-        
-        # create new tool instance with next folder
-        new_tool = GestureLabelingTool(str(next_folder))
-        new_tool.show()
-    
     def save_and_next(self):
         if self.save_labels():
             self.next_recording()
