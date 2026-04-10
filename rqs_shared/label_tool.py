@@ -85,6 +85,10 @@ class GestureLabelingTool:
         ax_initial = plt.axes([0.24, 0.05, 0.12, 0.04])
         self.btn_initial = Button(ax_initial, 'Mark t_initial')
         self.btn_initial.on_clicked(lambda _: self.mark_t_initial())
+
+        ax_auto = plt.axes([0.38, 0.05, 0.12, 0.04])
+        self.btn_auto = Button(ax_auto, 'Auto-detect GO')
+        self.btn_auto.on_clicked(lambda _: self.detect_go_flash())
         
         ax_save = plt.axes([0.52, 0.05, 0.12, 0.04])
         self.btn_save = Button(ax_save, 'Save Labels')
@@ -97,6 +101,21 @@ class GestureLabelingTool:
         ax_next = plt.axes([0.8, 0.05, 0.08, 0.04])
         self.btn_next = Button(ax_next, 'Next →')
         self.btn_next.on_clicked(lambda _: self.next_recording())
+        
+    def detect_go_flash(self):
+        for i in range(min(150, self.n_frames)):  # check first 150 frames
+            frame_path = self.recording_folder / self.basler_files[i]
+            frame = np.fromfile(frame_path, dtype=np.uint8).reshape(1200, 1920)
+            
+            # white flash detection
+            if frame.mean() > 200:  # very bright = flash
+                self.go_frame = i
+                self.load_frame(i)  # jump to flash frame
+                print(f"✓ GO flash auto-detected at frame {i}")
+                return True
+        
+        print("⚠ No GO flash detected in first 150 frames")
+        return False
     
     def mark_go(self):
         self.go_frame = self.current_frame
