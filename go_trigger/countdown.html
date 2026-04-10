@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        margin: 0;
+        background: black;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: Arial, sans-serif;
+      }
+      #display {
+        font-size: 30vh;
+        color: white;
+        text-align: center;
+        user-select: none;
+      }
+      .flash {
+        background: white !important;
+      }
+    </style>
+  </head>
+  <body onclick="startCountdown()">
+    <div id="display">TAP TO START</div>
+
+    <script>
+      let running = false;
+
+      function startCountdown() {
+        if (running) return;
+        running = true;
+
+        const display = document.getElementById("display");
+        const body = document.body;
+
+        // Countdown: 3, 2, 1
+        const countdown = ["3", "2", "1"];
+        let i = 0;
+
+        function showNext() {
+          if (i < countdown.length) {
+            display.textContent = countdown[i];
+            i++;
+            setTimeout(showNext, 1000);
+          } else {
+            // WHITE FLASH
+            body.classList.add("flash");
+            display.textContent = "";
+
+            setTimeout(() => {
+              // GO
+              body.classList.remove("flash");
+              display.textContent = "GO";
+              display.style.color = "lime";
+
+              setTimeout(() => {
+                // Reset
+                display.textContent = "TAP TO START";
+                display.style.color = "white";
+                running = false;
+              }, 2000);
+            }, 100); // 100ms flash
+          }
+        }
+
+        showNext();
+      }
+    </script>
+  </body>
+</html>
