@@ -164,9 +164,45 @@ class GestureLabelingTool:
         print(f"  t_initial: frame {labels['t_initial_frame']} → {labels['t_initial_time_us']} µs")
         return True
     
+    def next_recording(self):
+        next_folder = self.get_next_recording()
+        if next_folder is None:
+            print("✓ No more recordings to label!")
+            return
+        
+        print(f"\n→ Loading next recording: {next_folder}")
+        
+        # Update state in-place instead of creating a new instance
+        self.recording_folder = Path(next_folder)
+        self.go_frame = None
+        self.t_initial_frame = None
+        self.current_frame = 0
+        
+        trigger_path = self.recording_folder / 'basler_frame_timestamps.npy'
+        self.trigger_times = np.load(trigger_path)
+        self.n_frames = len(self.trigger_times)
+        
+        self.basler_files = sorted(
+            [f for f in os.listdir(self.recording_folder)
+            if f.startswith('Basler') and f.endswith('.raw')],
+            key=lambda x: int(x.split('__')[1].split('.')[0])
+        )[:self.n_frames]
+        
+        self.load_go_from_metadata()
+        
+        # Update slider range
+        self.slider.valmax = self.n_frames - 1
+        self.slider.ax.set_xlim(0, self.n_frames - 1)
+        init_frame = self.go_frame if self.go_frame is not None else 0
+        self.slider.set_val(init_frame)
+        
+        # Reset image display so imshow re-initializes
+        self.img_display = None
+        self.ax.cla()
+        
+        self.load_frame(init_frame)
+
     def get_next_recording(self):
-        """Find the next recording folder to label"""
-       
         folder_name = self.recording_folder.name
         prefix = folder_name.split('_')[0]
         current_index = int(folder_name.split('_')[1])
@@ -175,7 +211,7 @@ class GestureLabelingTool:
         gestures = ['rock', 'paper', 'scissor']
         current_gesture = gesture_map[prefix]
         
-        base = self.recording_folder.parent.parent  # go up to test_1 directory
+        base = self.recording_folder.parent.parent
         
         next_index = current_index + 1
         next_folder = base / current_gesture / f"{prefix}_{next_index}"
@@ -183,17 +219,14 @@ class GestureLabelingTool:
         if next_folder.exists():
             return next_folder
         
-        # try first index of next gesture
         gesture_idx = gestures.index(current_gesture)
         if gesture_idx < len(gestures) - 1:
             next_gesture = gestures[gesture_idx + 1]
             next_prefix = next_gesture[0]
             next_folder = base / next_gesture / f"{next_prefix}_1"
-            
             if next_folder.exists():
                 return next_folder
         
-        # no more recordings
         return None
     
     def next_recording(self):
@@ -212,7 +245,6 @@ class GestureLabelingTool:
         new_tool.show()
     
     def save_and_next(self):
-        """Save labels and move to next recording"""
         if self.save_labels():
             self.next_recording()
     

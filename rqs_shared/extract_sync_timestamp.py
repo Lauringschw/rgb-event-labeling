@@ -46,11 +46,11 @@ if __name__ == "__main__":
     for gesture in ['rock', 'paper', 'scissor']:
         prefix = gesture[0]  # r, p, s
         
-        for i in range(1, 1001):  # 1 to 1000
+        for i in range(1, 100):  # 1 to 1000
             folder = base / gesture / f"{prefix}_{i}"
             
             # Find .raw file
-            raw_files = sorted(folder.glob("recording_2026*.raw"))
+            raw_files = sorted(folder.glob("prophesee_events*.raw"))
             if not raw_files:
                 print(f"⚠ No .raw file in {folder}")
                 continue
