@@ -103,19 +103,36 @@ class GestureLabelingTool:
         self.btn_next.on_clicked(lambda _: self.next_recording())
         
     def detect_go_flash(self):
-        for i in range(min(150, self.n_frames)):  # check first 150 frames
+        # Phone ROI: bottom-left corner
+        phone_y, phone_h = 900, 250
+        phone_x, phone_w = 50, 450
+        
+        max_brightness = 0
+        max_frame = 0
+        
+        print("Scanning frames for brightness peaks...")
+        for i in range(min(600, self.n_frames)):
             frame_path = self.recording_folder / self.basler_files[i]
             frame = np.fromfile(frame_path, dtype=np.uint8).reshape(1200, 1920)
             
-            # white flash detection
-            if frame.mean() > 200:  # very bright = flash
-                self.go_frame = i
-                self.load_frame(i)  # jump to flash frame
-                print(f"✓ GO flash auto-detected at frame {i}")
-                return True
+            roi = frame[phone_y:phone_y+phone_h, phone_x:phone_x+phone_w]
+            brightness = roi.mean()
+            
+            if brightness > max_brightness:
+                max_brightness = brightness
+                max_frame = i
+            
+            # Print every 50 frames
+            if i % 50 == 0:
+                print(f"Frame {i}: ROI brightness = {brightness:.1f}")
         
-        print("⚠ No GO flash detected in first 150 frames")
-        return False
+        print(f"\n✓ Brightest frame: {max_frame} with brightness {max_brightness:.1f}")
+        
+        # Set GO frame and update UI
+        self.go_frame = max_frame
+        self.slider.set_val(max_frame)  # Update slider position
+        self.load_frame(max_frame)
+        return True
     
     def mark_go(self):
         self.go_frame = self.current_frame
@@ -204,5 +221,5 @@ class GestureLabelingTool:
         plt.show()
 
 if __name__ == '__main__':
-    tool = GestureLabelingTool('/home/lau/Documents/test_1/paper/p_20')
+    tool = GestureLabelingTool('/home/lau/Documents/test_2/scissor/s_1')
     tool.show()

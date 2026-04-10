@@ -40,7 +40,7 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    base = Path("/home/lau/Documents/test_1")
+    base = Path("/home/lau/Documents/test_2")
 
     # Process all recordings
     for gesture in ['rock', 'paper', 'scissor']:
