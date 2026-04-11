@@ -8,8 +8,13 @@ def extract_event_samples_rq1(recording_folder):
     RQ1: Extract samples at different window lengths (20ms, 30ms, 50ms)
     at t_initial landmark only.
     """
+    labels_path = f'{recording_folder}/labels.npy'
+    if not Path(labels_path).exists():
+        print(f"⚠ Skipping {recording_folder} - labels.npy not found")
+        return None
+    
     # load labels
-    labels = np.load(f'{recording_folder}/labels.npy', allow_pickle=True).item()
+    labels = np.load(labels_path, allow_pickle=True).item()
     t_initial = labels['t_initial_time_us']
     
     # RQ1: only t_initial landmark
@@ -61,11 +66,14 @@ def events_to_frame(events, height, width):
     return frame
 
 if __name__ == '__main__':
-    base = Path('/home/lau/Documents/test_1')
+    base = Path('/home/lau/Documents/test_2')
     
     for gesture in ['rock', 'paper', 'scissor']:
         for i in range(1, 21):
             folder = base / gesture / f'{gesture[0]}_{i}'
             samples = extract_event_samples_rq1(str(folder))
-            np.save(folder / 'event_samples_rq1.npy', samples)
-            print(f'✓ {gesture}_{i}')
+            if samples is not None:
+                np.save(folder / 'event_samples_rq1.npy', samples)
+                print(f'✓ {gesture}_{i}')
+            else:
+                print(f'✗ {gesture}_{i} - skipped')

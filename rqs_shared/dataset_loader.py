@@ -3,7 +3,7 @@ import os
 from sklearn.model_selection import train_test_split
 
 class GestureDataset:
-    def __init__(self, base_folder='/home/lau/Documents/test_1'):
+    def __init__(self, base_folder='/home/lau/Documents/test_2'):
         self.base_folder = base_folder
         self.gestures = ['rock', 'paper', 'scissor']
         

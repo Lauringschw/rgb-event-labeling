@@ -96,7 +96,7 @@ def events_to_time_surface(events, height, width, landmark):
     return surface
 
 if __name__ == '__main__':
-    base = Path('/home/lau/Documents/test_1')
+    base = Path('/home/lau/Documents/test_2')
     
     for gesture in ['rock', 'paper', 'scissor']:
         for i in range(1, 21):
