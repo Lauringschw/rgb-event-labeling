@@ -26,6 +26,7 @@ class GestureLabelingTool:
         self.current_frame = 0
         self.go_frame = None
         self.t_initial_frame = None
+        self._syncing_slider = False
         
         # Restore previously saved labels first; fall back to metadata only when needed
         self.load_saved_labels_or_metadata()
@@ -33,6 +34,7 @@ class GestureLabelingTool:
         # setup plot
         self.fig, self.ax = plt.subplots(figsize=(12, 8))
         plt.subplots_adjust(bottom=0.25)
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         
         self.img_display = None
         self.setup_ui()
@@ -104,7 +106,27 @@ class GestureLabelingTool:
         
         self.current_frame = frame_idx
         self.update_title()
+
+        if hasattr(self, 'slider') and not self._syncing_slider and int(self.slider.val) != frame_idx:
+            self._syncing_slider = True
+            try:
+                self.slider.set_val(frame_idx)
+            finally:
+                self._syncing_slider = False
+
         self.fig.canvas.draw_idle()
+
+    def on_key_press(self, event):
+        if event.key == 'left':
+            self.load_frame(self.current_frame - 1)
+        elif event.key == 'right':
+            self.load_frame(self.current_frame + 1)
+        elif event.key == 'down':
+            self.mark_go()
+        elif event.key == 'up':
+            self.mark_t_initial()
+        elif event.key == 'shift':
+            self.save_and_next()
     
     def update_title(self):
         # Calculate time relative to first frame in milliseconds
@@ -117,6 +139,8 @@ class GestureLabelingTool:
             title += f" | GO: frame {self.go_frame}"
         if self.t_initial_frame is not None:
             title += f" | t_initial: frame {self.t_initial_frame}"
+
+        title += " | Keys: ←/→ frame, ↓ GO, ↑ t_initial, Shift save+next"
         
         self.ax.set_title(title)
     
@@ -126,7 +150,7 @@ class GestureLabelingTool:
         self.slider = Slider(ax_slider, 'Frame', 0, self.n_frames-1, 
                              valinit=self.go_frame if self.go_frame is not None else 0, 
                              valstep=1)
-        self.slider.on_changed(lambda val: self.load_frame(int(val)))
+        self.slider.on_changed(self.on_slider_change)
         
         # buttons
         ax_go = plt.axes([0.1, 0.05, 0.12, 0.04])
@@ -148,6 +172,11 @@ class GestureLabelingTool:
         ax_next = plt.axes([0.66, 0.05, 0.08, 0.04])
         self.btn_next = Button(ax_next, 'Next →')
         self.btn_next.on_clicked(lambda _: self.next_recording())
+
+    def on_slider_change(self, val):
+        if self._syncing_slider:
+            return
+        self.load_frame(int(val))
     
     def mark_go(self):
         self.go_frame = self.current_frame
@@ -210,7 +239,6 @@ class GestureLabelingTool:
         self.slider.valmax = self.n_frames - 1
         self.slider.ax.set_xlim(0, self.n_frames - 1)
         init_frame = self.go_frame if self.go_frame is not None else 0
-        self.slider.set_val(init_frame)
         
         # Reset image display so imshow re-initializes
         self.img_display = None
