@@ -69,11 +69,19 @@ if __name__ == '__main__':
     base = Path('/home/lau/Documents/test_2')
     
     for gesture in ['rock', 'paper', 'scissor']:
-        for i in range(1, 21):
-            folder = base / gesture / f'{gesture[0]}_{i}'
+        gesture_dir = base / gesture
+        if not gesture_dir.exists():
+            print(f'⚠ Gesture directory {gesture_dir} not found')
+            continue
+        
+        # Get all subfolders (recordings) in the gesture directory
+        recording_folders = [f for f in gesture_dir.iterdir() if f.is_dir()]
+        recording_folders.sort()  # sort to process in order
+        
+        for folder in recording_folders:
             samples = extract_event_samples_rq1(str(folder))
             if samples is not None:
                 np.save(folder / 'event_samples_rq1.npy', samples)
-                print(f'✓ {gesture}_{i}')
+                print(f'✓ {gesture}/{folder.name}')
             else:
-                print(f'✗ {gesture}_{i} - skipped')
+                print(f'✗ {gesture}/{folder.name} - skipped')

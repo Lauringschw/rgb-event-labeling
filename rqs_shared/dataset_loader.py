@@ -21,9 +21,19 @@ class GestureDataset:
         }
         
         missing_count = 0
+        total_count = 0
         for gesture in self.gestures:
-            for i in range(1, 21):
-                folder_name = f'{gesture[0]}_{i}'
+            gesture_dir = os.path.join(self.base_folder, gesture)
+            if not os.path.exists(gesture_dir):
+                print(f'⚠ Gesture directory {gesture_dir} not found')
+                continue
+            
+            # Get all subfolders (recordings)
+            recording_folders = [f for f in os.listdir(gesture_dir) if os.path.isdir(os.path.join(gesture_dir, f))]
+            recording_folders.sort()
+            
+            for folder_name in recording_folders:
+                total_count += 1
                 sample_path = os.path.join(self.base_folder, gesture, folder_name, 'event_samples_rq1.npy')
                 
                 if not os.path.exists(sample_path):
@@ -38,7 +48,7 @@ class GestureDataset:
                     dataset[window]['data'].append(samples[window])
                     dataset[window]['labels'].append(label)
         
-        print(f'✓ loaded RQ1 samples from {60 - missing_count}/60 recordings')
+        print(f'✓ loaded RQ1 samples from {total_count - missing_count}/{total_count} recordings')
         
         # convert to arrays
         for window in dataset:
@@ -82,9 +92,19 @@ class GestureDataset:
         }
         
         missing_count = 0
+        total_count = 0
         for gesture in self.gestures:
-            for i in range(1, 21):
-                folder_name = f'{gesture[0]}_{i}'
+            gesture_dir = os.path.join(self.base_folder, gesture)
+            if not os.path.exists(gesture_dir):
+                print(f'⚠ Gesture directory {gesture_dir} not found')
+                continue
+            
+            # Get all subfolders (recordings)
+            recording_folders = [f for f in os.listdir(gesture_dir) if os.path.isdir(os.path.join(gesture_dir, f))]
+            recording_folders.sort()
+            
+            for folder_name in recording_folders:
+                total_count += 1
                 sample_path = os.path.join(self.base_folder, gesture, folder_name, 'event_samples_rq2.npy')
                 
                 if not os.path.exists(sample_path):
@@ -99,7 +119,7 @@ class GestureDataset:
                     dataset[landmark]['data'].append(samples[landmark])
                     dataset[landmark]['labels'].append(label)
         
-        print(f'✓ loaded RQ2 samples from {60 - missing_count}/60 recordings')
+        print(f'✓ loaded RQ2 samples from {total_count - missing_count}/{total_count} recordings')
         
         # convert to arrays
         for landmark in dataset:
@@ -141,9 +161,19 @@ class GestureDataset:
         }
         
         missing_count = 0
+        total_count = 0
         for gesture in self.gestures:
-            for i in range(1, 21):
-                folder_name = f'{gesture[0]}_{i}'
+            gesture_dir = os.path.join(self.base_folder, gesture)
+            if not os.path.exists(gesture_dir):
+                print(f'⚠ Gesture directory {gesture_dir} not found')
+                continue
+            
+            # Get all subfolders (recordings)
+            recording_folders = [f for f in os.listdir(gesture_dir) if os.path.isdir(os.path.join(gesture_dir, f))]
+            recording_folders.sort()
+            
+            for folder_name in recording_folders:
+                total_count += 1
                 sample_path = os.path.join(self.base_folder, gesture, folder_name, 'event_samples_rq3.npy')
                 
                 if not os.path.exists(sample_path):
@@ -158,7 +188,7 @@ class GestureDataset:
                     dataset[rep]['data'].append(samples[rep])
                     dataset[rep]['labels'].append(label)
         
-        print(f'✓ loaded RQ3 samples from {60 - missing_count}/60 recordings')
+        print(f'✓ loaded RQ3 samples from {total_count - missing_count}/{total_count} recordings')
         
         # convert to arrays
         for rep in dataset:
