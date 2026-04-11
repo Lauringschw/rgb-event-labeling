@@ -27,8 +27,8 @@ class GestureLabelingTool:
         self.go_frame = None
         self.t_initial_frame = None
         
-        # Load metadata and auto-detect GO frame
-        self.load_go_from_metadata()
+        # Restore previously saved labels first; fall back to metadata only when needed
+        self.load_saved_labels_or_metadata()
         
         # setup plot
         self.fig, self.ax = plt.subplots(figsize=(12, 8))
@@ -43,6 +43,22 @@ class GestureLabelingTool:
         else:
             self.load_frame(0)
     
+    def load_saved_labels_or_metadata(self):
+        labels_path = self.recording_folder / 'labels.npy'
+        if labels_path.exists():
+            try:
+                labels = np.load(labels_path, allow_pickle=True).item()
+                self.go_frame = labels.get('go_frame')
+                self.t_initial_frame = labels.get('t_initial_frame')
+                print(f"✓ Loaded saved labels from {labels_path}")
+                print(f"  GO frame: {self.go_frame}")
+                print(f"  t_initial frame: {self.t_initial_frame}")
+                return
+            except Exception as e:
+                print(f"⚠ Could not load labels from {labels_path}: {e}")
+
+        self.load_go_from_metadata()
+
     def load_go_from_metadata(self):
         """Load GO frame from recording metadata"""
         metadata_path = self.recording_folder / 'recording_metadata.npy'
@@ -188,7 +204,7 @@ class GestureLabelingTool:
             key=lambda x: int(x.split('__')[1].split('.')[0])
         )[:self.n_frames]
         
-        self.load_go_from_metadata()
+        self.load_saved_labels_or_metadata()
         
         # Update slider range
         self.slider.valmax = self.n_frames - 1
