@@ -9,7 +9,7 @@ Generates training samples by extracting events at **t_initial** with three diff
 **Input:**
 
 - `labels.npy` (from manual labeling)
-- `recording_*.raw` (DVS event file)
+- `prophesee_events.raw` (DVS event file)
 
 **Output:**
 

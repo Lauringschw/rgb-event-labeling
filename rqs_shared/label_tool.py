@@ -237,5 +237,5 @@ class GestureLabelingTool:
         plt.show()
 
 if __name__ == '__main__':
-    tool = GestureLabelingTool('/home/lau/Documents/test_2/paper/p_1')
+    tool = GestureLabelingTool('/home/lau/Documents/test_2/rock/r_1')
     tool.show()

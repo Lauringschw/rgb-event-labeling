@@ -24,9 +24,9 @@ def extract_event_samples_rq2(recording_folder):
     window_us = 50_000  # 50ms
     
     # find the .raw event file
-    event_files = glob.glob(f'{recording_folder}/recording_*.raw')
+    event_files = glob.glob(f'{recording_folder}/prophesee_events.raw')
     if not event_files:
-        raise FileNotFoundError(f"no recording_*.raw found in {recording_folder}")
+        raise FileNotFoundError(f"no prophesee_events.raw found in {recording_folder}")
     
     event_file = event_files[0]
     print(f"loading events from {event_file}")

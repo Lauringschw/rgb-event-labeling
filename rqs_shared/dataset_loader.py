@@ -52,12 +52,15 @@ class GestureDataset:
         X = dataset[window]['data']
         y = dataset[window]['labels']
         
-        X_train, X_test, y_train, y_test = train_test_split(
+        # First split: separate test set
+        X_temp, X_test, y_temp, y_test = train_test_split(
             X, y, test_size=test_size, random_state=42, stratify=y
         )
         
+        # Second split: separate validation from training
+        # Use different random_state to ensure independence
         X_train, X_val, y_train, y_val = train_test_split(
-            X_train, y_train, test_size=val_size/(1-test_size), random_state=42, stratify=y_train
+            X_temp, y_temp, test_size=val_size/(1-test_size), random_state=123, stratify=y_temp
         )
         
         print(f'{window}: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}')
@@ -110,12 +113,14 @@ class GestureDataset:
         X = dataset[landmark]['data']
         y = dataset[landmark]['labels']
         
-        X_train, X_test, y_train, y_test = train_test_split(
+        # First split: separate test set
+        X_temp, X_test, y_temp, y_test = train_test_split(
             X, y, test_size=test_size, random_state=42, stratify=y
         )
         
+        # Second split: separate validation from training
         X_train, X_val, y_train, y_val = train_test_split(
-            X_train, y_train, test_size=val_size/(1-test_size), random_state=42, stratify=y_train
+            X_temp, y_temp, test_size=val_size/(1-test_size), random_state=123, stratify=y_temp
         )
         
         print(f'{landmark}: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}')
@@ -167,12 +172,14 @@ class GestureDataset:
         X = dataset[representation]['data']
         y = dataset[representation]['labels']
         
-        X_train, X_test, y_train, y_test = train_test_split(
+        # First split: separate test set
+        X_temp, X_test, y_temp, y_test = train_test_split(
             X, y, test_size=test_size, random_state=42, stratify=y
         )
         
+        # Second split: separate validation from training
         X_train, X_val, y_train, y_val = train_test_split(
-            X_train, y_train, test_size=val_size/(1-test_size), random_state=42, stratify=y_train
+            X_temp, y_temp, test_size=val_size/(1-test_size), random_state=123, stratify=y_temp
         )
         
         print(f'{representation}: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}')
