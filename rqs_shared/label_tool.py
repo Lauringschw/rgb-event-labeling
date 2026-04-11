@@ -27,6 +27,7 @@ class GestureLabelingTool:
         self.go_frame = None
         self.t_initial_frame = None
         self._syncing_slider = False
+        self.t_initial_marker = None
         
         # Restore previously saved labels first; fall back to metadata only when needed
         self.load_saved_labels_or_metadata()
@@ -44,6 +45,21 @@ class GestureLabelingTool:
             self.load_frame(self.go_frame)
         else:
             self.load_frame(0)
+
+    def update_t_initial_marker(self):
+        if hasattr(self, 'slider'):
+            if self.t_initial_marker is not None:
+                self.t_initial_marker.remove()
+                self.t_initial_marker = None
+
+            if self.t_initial_frame is not None:
+                self.t_initial_marker = self.slider.ax.axvline(
+                    self.t_initial_frame,
+                    color='red',
+                    linestyle='--',
+                    linewidth=2,
+                    label='t_initial',
+                )
     
     def load_saved_labels_or_metadata(self):
         labels_path = self.recording_folder / 'labels.npy'
@@ -106,6 +122,7 @@ class GestureLabelingTool:
         
         self.current_frame = frame_idx
         self.update_title()
+        self.update_t_initial_marker()
 
         if hasattr(self, 'slider') and not self._syncing_slider and int(self.slider.val) != frame_idx:
             self._syncing_slider = True
@@ -186,6 +203,7 @@ class GestureLabelingTool:
     def mark_t_initial(self):
         self.t_initial_frame = self.current_frame
         self.update_title()
+        self.update_t_initial_marker()
         print(f"t_initial marked at frame {self.t_initial_frame} ({self.trigger_times[self.t_initial_frame]/1e6:.3f}s)")
     
     def save_labels(self):
@@ -239,6 +257,7 @@ class GestureLabelingTool:
         self.slider.valmax = self.n_frames - 1
         self.slider.ax.set_xlim(0, self.n_frames - 1)
         init_frame = self.go_frame if self.go_frame is not None else 0
+        self.update_t_initial_marker()
         
         # Reset image display so imshow re-initializes
         self.img_display = None
