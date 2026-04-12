@@ -16,6 +16,10 @@ This folder contains quick scripts to inspect recorded RGB/event data and timing
 4. go_getter.py
    1. Loads recording_metadata.npy and prints GO-related information.
    2. Useful for confirming expected GO timing/frame before labeling.
+5. preview_extracted_samples.py
+   1. Loads generated event sample files (`event_samples_rq1.npy`, `event_samples_rq2.npy`, `event_samples_rq3.npy`).
+   2. Saves a few preview PNGs to `SAMPLES_DIR/previews/...`.
+   3. Optional: open interactive matplotlib windows to inspect the samples.
 
 ## Quick usage
 
@@ -26,6 +30,8 @@ python testing/test_rgb.py
 python testing/test_dvs.py
 python testing/npy.py
 python testing/go_getter.py
+python testing/preview_extracted_samples.py --rq rq1 --num 6
+python testing/preview_extracted_samples.py --rq all --num 4 --save-only
 ```
 
 ## Typical outputs
@@ -38,3 +44,6 @@ python testing/go_getter.py
    1. NumPy array of Basler frame timestamps.
 4. go_getter.py
    1. Metadata dictionary and GO summary fields.
+5. preview_extracted_samples.py
+   1. Saved PNG previews in `SAMPLES_DIR/previews/rq1`, `rq2`, `rq3`.
+   2. Interactive plots if `--save-only` is not set.
