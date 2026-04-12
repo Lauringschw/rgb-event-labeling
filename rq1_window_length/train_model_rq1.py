@@ -13,37 +13,66 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'rqs_shared'))
 from dataset_loader import GestureDataset
 
 class GestureCNN(nn.Module):
-    """Simple CNN for gesture classification from event frames"""
+    """Simpler CNN for small dataset"""
     def __init__(self):
         super(GestureCNN, self).__init__()
         
         self.conv_layers = nn.Sequential(
             # input: 1 x 720 x 1280
-            nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2),  # -> 32 x 360 x 640
+            nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2),  # -> 16 x 360 x 640
             nn.ReLU(),
-            nn.MaxPool2d(2),  # -> 32 x 180 x 320
+            nn.MaxPool2d(2),  # -> 16 x 180 x 320
             
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # -> 64 x 90 x 160
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),  # -> 32 x 90 x 160
             nn.ReLU(),
-            nn.MaxPool2d(2),  # -> 64 x 45 x 80
-            
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # -> 128 x 23 x 40
-            nn.ReLU(),
-            nn.MaxPool2d(2),  # -> 128 x 11 x 20
+            nn.MaxPool2d(2),  # -> 32 x 45 x 80
         )
         
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(128 * 11 * 20, 256),
+            nn.Linear(32 * 45 * 80, 64),  # Much smaller
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 3)  # 3 classes: rock, paper, scissor
+            nn.Dropout(0.7),  # Higher dropout
+            nn.Linear(64, 3)
         )
     
     def forward(self, x):
         x = self.conv_layers(x)
         x = self.fc_layers(x)
         return x
+
+# class GestureCNN(nn.Module):
+#     """Simple CNN for gesture classification from event frames"""
+#     def __init__(self):
+#         super(GestureCNN, self).__init__()
+        
+#         self.conv_layers = nn.Sequential(
+#             # input: 1 x 720 x 1280
+#             nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2),  # -> 32 x 360 x 640
+#             nn.ReLU(),
+#             nn.MaxPool2d(2),  # -> 32 x 180 x 320
+            
+#             nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # -> 64 x 90 x 160
+#             nn.ReLU(),
+#             nn.MaxPool2d(2),  # -> 64 x 45 x 80
+            
+#             nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # -> 128 x 23 x 40
+#             nn.ReLU(),
+#             nn.MaxPool2d(2),  # -> 128 x 11 x 20
+#         )
+        
+#         self.fc_layers = nn.Sequential(
+#             nn.Flatten(),
+#             nn.Linear(128 * 11 * 20, 256),
+#             nn.ReLU(),
+#             nn.Dropout(0.5),
+#             nn.Linear(256, 3)  # 3 classes: rock, paper, scissor
+#         )
+    
+#     def forward(self, x):
+#         x = self.conv_layers(x)
+#         x = self.fc_layers(x)
+#         return x
 
 def train_epoch(model, loader, criterion, optimizer, device):
     model.train()
@@ -131,15 +160,15 @@ def train_window_model(window, split, epochs=50, batch_size=16, lr=0.001):
             best_model_state = model.state_dict().copy()
         
         if (epoch + 1) % 10 == 0:
-            print(f'Epoch {epoch+1}/{epochs}: train_loss={train_loss:.4f}, train_acc={train_acc:.2f}%, val_acc={val_acc:.2f}%')
+            print(f'Epoch {epoch+1}/{epochs}: train_loss={train_loss:.4f}, train_acc={train_acc:.2f}%, val_acc={val_acc*100:.2f}%')
     
     # load best model and evaluate on test set
     model.load_state_dict(best_model_state)
     test_acc, test_preds, test_labels = evaluate(model, test_loader, device)
     
     print(f'\n{window} Results:')
-    print(f'  Best val accuracy: {best_val_acc:.2f}%')
-    print(f'  Test accuracy: {test_acc:.2f}%')
+    print(f'  Best val accuracy: {best_val_acc*100:.2f}%')
+    print(f'  Test accuracy: {test_acc*100:.2f}%')
     
     # confusion matrix
     cm = confusion_matrix(test_labels, test_preds)
@@ -182,7 +211,7 @@ if __name__ == '__main__':
     print('RQ1 RESULTS SUMMARY: Window Length Comparison')
     print('='*60)
     for window in ['20ms', '30ms', '50ms']:
-        print(f'{window:6s}: test_acc={results[window]["test_accuracy"]:.2f}%')
+        print(f'{window:6s}: test_acc={results[window]["test_accuracy"]*100:.2f}%')
     
     # save results
     np.save('rq1_results.npy', results)

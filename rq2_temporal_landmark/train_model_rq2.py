@@ -14,30 +14,27 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'rqs_shared'))
 from dataset_loader import GestureDataset
 
 class GestureCNN(nn.Module):
-    """Simple CNN for gesture classification from event frames"""
+    """Simpler CNN for small dataset"""
     def __init__(self):
         super(GestureCNN, self).__init__()
         
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2),
+            # input: 1 x 720 x 1280
+            nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2),  # -> 16 x 360 x 640
             nn.ReLU(),
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(2),  # -> 16 x 180 x 320
             
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),  # -> 32 x 90 x 160
             nn.ReLU(),
-            nn.MaxPool2d(2),
-            
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(2),  # -> 32 x 45 x 80
         )
         
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(128 * 11 * 20, 256),
+            nn.Linear(32 * 45 * 80, 64),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 3)
+            nn.Dropout(0.7),
+            nn.Linear(64, 3)
         )
     
     def forward(self, x):
@@ -131,7 +128,7 @@ def train_landmark_model(landmark, split, epochs=50, batch_size=16, lr=0.001):
             best_model_state = model.state_dict().copy()
         
         if (epoch + 1) % 10 == 0:
-            print(f'Epoch {epoch+1}/{epochs}: train_loss={train_loss:.4f}, train_acc={train_acc:.2f}%, val_acc={val_acc:.2f}%')
+            print(f'Epoch {epoch+1}/{epochs}: train_loss={train_loss:.4f}, train_acc={train_acc:.2f}%, val_acc={val_acc*100:.2f}%')
     
     # load best model and evaluate on test set
     model.load_state_dict(best_model_state)
@@ -148,8 +145,8 @@ def train_landmark_model(landmark, split, epochs=50, batch_size=16, lr=0.001):
     
     print(f'\n{landmark} Results:')
     print(f'  Prediction latency: {latency}ms after t_initial')
-    print(f'  Best val accuracy: {best_val_acc:.2f}%')
-    print(f'  Test accuracy: {test_acc:.2f}%')
+    print(f'  Best val accuracy: {best_val_acc*100:.2f}%')
+    print(f'  Test accuracy: {test_acc*100:.2f}%')
     
     # confusion matrix
     cm = confusion_matrix(test_labels, test_preds)
@@ -196,7 +193,7 @@ if __name__ == '__main__':
     print('-'*60)
     for landmark in ['t_initial', 't_early', 't_mid', 't_late']:
         r = results[landmark]
-        print(f'{landmark:<12} {r["latency_ms"]:<15} {r["test_accuracy"]:.2f}%')
+        print(f'{landmark:<12} {r["latency_ms"]:<15} {r["test_accuracy"]*100:.2f}%')
     
     # save results
     np.save('rq2_results.npy', results)
