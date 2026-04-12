@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / '.env')
+
 
 class GestureLabelingTool:
     def __init__(self, recording_folder):
@@ -157,7 +161,7 @@ class GestureLabelingTool:
         if self.t_initial_frame is not None:
             title += f" | t_initial: frame {self.t_initial_frame}"
 
-        title += " | Keys: ←/→ frame, ↓ GO, ↑ t_initial, Shift save+next"
+        title += "\nKeys: ←/→ frame, ↓ GO, ↑ t_initial, Shift save+next"
         
         self.ax.set_title(title)
     
@@ -300,5 +304,6 @@ class GestureLabelingTool:
         plt.show()
 
 if __name__ == '__main__':
-    tool = GestureLabelingTool('/home/lau/Documents/test_2/rock/r_1')
+    base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
+    tool = GestureLabelingTool(base / "rock" / "r_1")
     tool.show()

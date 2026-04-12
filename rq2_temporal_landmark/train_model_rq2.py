@@ -7,6 +7,10 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 # Add rqs_shared to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'rqs_shared'))
@@ -182,8 +186,9 @@ if __name__ == '__main__':
         results[landmark] = result
         
         # save model
-        torch.save(result['model_state'], f'model_{landmark}.pth')
-        print(f'\nSaved model to model_{landmark}.pth')
+        model_path = Path(os.getenv('MODEL_DIR')) / f'rq2_{landmark}.pth'
+        torch.save(result['model_state'], model_path)
+        print(f'\nSaved model to {model_path}')
     
     # summary
     print('\n' + '='*60)
@@ -196,5 +201,6 @@ if __name__ == '__main__':
         print(f'{landmark:<12} {r["latency_ms"]:<15} {r["test_accuracy"]*100:.2f}%')
     
     # save results
-    np.save('rq2_results.npy', results)
-    print('\nResults saved to rq2_results.npy')
+    results_path = Path(os.getenv('RESULTS_DIR')) / 'rq2_results.npy'
+    np.save(results_path, results)
+    print(f'\nResults saved to {results_path}')

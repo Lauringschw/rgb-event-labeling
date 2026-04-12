@@ -1,7 +1,10 @@
 from pathlib import Path
 import numpy as np
 from metavision_core.event_io import RawReader
+from dotenv import load_dotenv
+import os
 
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
     """Extract rising-edge external trigger timestamps from a RAW file."""
@@ -40,7 +43,7 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    base = Path("/home/lau/Documents/test_2")
+    base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
 
     # Process all recordings
     for gesture in ['rock', 'paper', 'scissor']:

@@ -1,13 +1,17 @@
 from pathlib import Path
 from metavision_core.event_io import EventsIterator
+from dotenv import load_dotenv
+import os
+
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 index = 1 # set this
 category = "paper"   # set this to either "rock" or "paper" or "scissor"
 prefix = {"rock": "r", "paper": "p", "scissor": "s"}[category]
 
-base = Path("/home/lau/Documents/test_2") / category / f"{prefix}_{index}"
+base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
 
-pattern = base / f"prophesee_events*.raw"
+pattern = base / f"{category}/{prefix}_{index}/prophesee_events.raw"
 
 paths = sorted(pattern.parent.glob(pattern.name))
 if not paths:

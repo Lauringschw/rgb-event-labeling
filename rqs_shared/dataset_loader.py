@@ -1,9 +1,15 @@
+from pathlib import Path
 import numpy as np
 import os
 from sklearn.model_selection import train_test_split
+from dotenv import load_dotenv
+import os
+
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 class GestureDataset:
-    def __init__(self, base_folder='/home/lau/Documents/test_2'):
+
+    def __init__(self, base_folder=Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))):
         self.base_folder = base_folder
         self.gestures = ['rock', 'paper', 'scissor']
         

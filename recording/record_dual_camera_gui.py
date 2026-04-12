@@ -6,6 +6,10 @@ import time
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
+from dotenv import load_dotenv
+import os
+
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 class RecordingGUI:
     def __init__(self, root):
@@ -63,7 +67,7 @@ class RecordingGUI:
         
         # Base directory
         ttk.Label(settings_frame, text="Base folder:").grid(row=2, column=0, sticky=tk.W, pady=5)
-        self.base_dir_var = tk.StringVar(value="/home/lau/Documents/test_2")
+        self.base_dir_var = tk.StringVar(value=Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR")))
         ttk.Entry(settings_frame, textvariable=self.base_dir_var, width=30).grid(row=2, column=1, sticky=tk.W, pady=5)
         
         # Current output path display

@@ -6,6 +6,10 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 # Add rqs_shared to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'rqs_shared'))
@@ -203,8 +207,9 @@ if __name__ == '__main__':
         results[window] = result
         
         # save model
-        torch.save(result['model_state'], f'model_{window}.pth')
-        print(f'\nSaved model to model_{window}.pth')
+        model_path = Path(os.getenv('MODEL_DIR')) / f'rq1_{window}.pth'
+        torch.save(result['model_state'], model_path)
+        print(f'\nSaved model to {model_path}')
     
     # summary
     print('\n' + '='*60)
@@ -214,5 +219,6 @@ if __name__ == '__main__':
         print(f'{window:6s}: test_acc={results[window]["test_accuracy"]*100:.2f}%')
     
     # save results
-    np.save('rq1_results.npy', results)
-    print('\nResults saved to rq1_results.npy')
+    results_path = Path(os.getenv('RESULTS_DIR')) / 'rq1_results.npy'
+    np.save(results_path, results)
+    print(f'\nResults saved to {results_path}')

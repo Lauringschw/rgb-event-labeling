@@ -2,6 +2,10 @@ import numpy as np
 import glob
 from metavision_core.event_io import EventsIterator
 from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 def extract_event_samples_rq1(recording_folder):
     """
@@ -66,7 +70,7 @@ def events_to_frame(events, height, width):
     return frame
 
 if __name__ == '__main__':
-    base = Path('/home/lau/Documents/test_2')
+    base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
     
     for gesture in ['rock', 'paper', 'scissor']:
         gesture_dir = base / gesture

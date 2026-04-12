@@ -1,5 +1,12 @@
 
 import numpy as np
+from dotenv import load_dotenv
+import os
+from pathlib import Path
 
-data = np.load("/home/lau/Documents/test_2/rock/r_1/basler_frame_timestamps.npy")
+load_dotenv(Path(__file__).parent.parent / '.env')
+
+base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
+
+data = np.load(base / "rock" / "r_1" / "basler_frame_timestamps.npy")
 print(data)
