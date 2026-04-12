@@ -1,135 +1,135 @@
-# Summary
+# rqs_shared
 
-1. label_tool: initiates the GO and t_initial
-   1. Output: dictionary
-      1. go_frame, go_time_us, t_initial_frame, t_initial_time_us, recording_folder
-   2. new file: labels.npy
+Shared utilities used across RQ1, RQ2, and RQ3.
+
+## Overview
+
+1. label_tool.py
+   1. Interactive GUI to label GO and t_initial on Basler frame sequences.
+   2. Saves labels to labels.npy per recording.
 2. extract_sync_timestamp.py
-   1. Output: 1D NumPy array of trigger timestamps
-      1. Each frame now maps to the timestamp of the event timeline
-   2. new file: basler_frame_timestamps.npy
-3. dataset_loader: helper functions to laod/split the data
-   1. Output: Each split returns:
-      1. X_train, y_train — training data
-      2. X_val, y_val — validation data (for hyperparameter tuning)
-      3. X_test, y_test — test data (for final evaluation)
+   1. Reads DVS RAW files and extracts rising-edge external trigger timestamps.
+   2. Saves per-recording timestamps to basler_frame_timestamps.npy.
+3. dataset_loader.py
+   1. Loads extracted event samples for each RQ.
+   2. Provides stratified train/val/test splits.
 4. utils.py
 
-## label_tool
+## label_tool.py
 
-This tool is a simple interactive GUI for manually labeling gesture timing in Basler frame recordings.
+Manual labeling GUI for gesture recordings.
 
-The interface displays one grayscale Basler frame from a recording sequence.
+### What it loads
 
-**At the top, it shows**:
+1. basler_frame_timestamps.npy from the selected recording folder.
+2. Basler\*.raw image frames, sorted by numeric frame index.
+3. Existing labels.npy if available; otherwise it falls back to recording_metadata.npy to auto-load the expected GO frame.
 
-- the current frame index
-- the corresponding timestamp in seconds
+### UI and controls
 
-**At the bottom, there is**:
+1. Slider for frame navigation.
+2. Buttons:
+   1. Mark GO
+   2. Mark t_initial
+   3. Save Labels
+   4. Save & Next
+   5. Next ->
+3. Keyboard shortcuts:
+   1. Left/Right arrows: previous/next frame
+   2. Down arrow: mark GO
+   3. Up arrow: mark t_initial
+   4. Shift: save and move to next recording
 
-- a **slider** to move through all frames
-- a **Mark GO** button to mark the frame where the gesture happens
-- a **Mark t_initial** button to mark the initial frame before the gesture
-- a **Save Labels** button to store the selected labels
+The selected t_initial frame is shown as a red dashed vertical marker on the slider.
 
-![Gesture Labeling Tool](/images/Screenshot%20from%202026-04-06%2021-12-32.png)
+### Output
+
+Saves labels.npy with:
+
+1. go_frame
+2. go_time_us
+3. t_initial_frame
+4. t_initial_time_us
+5. recording_folder
+
+### Next-recording behavior
+
+When using Save & Next or Next ->, the tool advances in this order:
+
+1. Current gesture folder (e.g., r_1 -> r_2 -> ...)
+2. Then the next gesture (rock -> paper -> scissor)
+
+If no further folder exists, it prints that labeling is complete.
+
+![Gesture Labeling Tool](/images/label.png)
 
 ## extract_sync_timestamp.py
 
-Extracts the synchronization mapping between your RGB camera and DVS camera by reading hardware trigger timestamps from the `.raw` file.
+Extracts synchronization timestamps from Prophesee RAW files using external trigger events.
 
-Keep p = 1 and discard p = 0
+### Core behavior
 
-The Basler camera sends an electrical pulse to the DVS camera every time it captures a frame. These pulses are recorded in the DVS .raw file as trigger events.
+1. Opens each RAW file with RawReader.
+2. Iterates through event chunks via load_n_events(...).
+3. Collects only rising edges (p == 1).
+4. Deduplicates and sorts timestamps.
+5. Prints summary:
+   1. number of unique rising edges
+   2. first trigger time
+   3. last trigger time
+   4. total duration
 
-```r
-Basler captures frame 0 → sends pulse → DVS records trigger at 1843788 µs
-Basler captures frame 1 → sends pulse → DVS records trigger at 1850188 µs
-Basler captures frame 2 → sends pulse → DVS records trigger at 1856589 µs
-...
-Basler captures frame 661 → sends pulse → DVS records trigger at 6074017 µs
-```
+If no rising-edge trigger is found, it raises a ValueError.
 
-### Confirmation
+### Batch processing in **main**
 
-**Output Example**: `rock/r_1`
+1. Uses environment variables RECORDINGS_DIR and DIR to find the dataset root.
+2. Iterates gesture folders: rock, paper, scissor.
+3. Iterates recording folders by index (prefix_i pattern, currently i = 1..99).
+4. Searches for prophesee_events\*.raw in each recording.
+5. Saves extracted timestamps to basler_frame_timestamps.npy in that same folder.
 
-```r
-total unique rising edges: 662
-first trigger: 1843788 µs (1.843788s)
-last trigger:  6074017 µs (6.074017s)
-duration: 4.230229s
-First 5 triggers:
-  Frame 0: 1843788 µs (1.843788s)
-  Frame 1: 1850188 µs (1.850188s)
-  Frame 2: 1856589 µs (1.856589s)
-  Frame 3: 1862989 µs (1.862989s)
-  Frame 4: 1869390 µs (1.869390s)
-Last 5 triggers:
-  Frame 657: 6048891 µs (6.048891s)
-  Frame 658: 6055292 µs (6.055292s)
-  Frame 659: 6061692 µs (6.061692s)
-  Frame 660: 6068093 µs (6.068093s)
-  Frame 661: 6074017 µs (6.074017s)
-```
+Example interpretation:
 
-**Confirmation**:
-
-- 662 RGB frames captured
-- 4.23 second recording (6.074017s - 1.843788s = 4.230229s)
-- ~6.4ms between frames (1.850188s - 1.843788s = 0.0064 and 1/0.0064 = 156.25)
-
-**What this means**:
-
-- Before 1843788 µs: DVS is recording, but RGB hasn't started yet → no sync
-- 1843788 → 6074017 µs: Both cameras recording, fully synchronized → use this window
-- After 6074017 µs: RGB stopped, DVS still recording → no sync
+1. One trigger timestamp corresponds to one Basler frame.
+2. The synchronized RGB-DVS interval is from first trigger to last trigger.
 
 ## dataset_loader.py
 
-Loads event samples and splits them into train/validation/test sets for each research question.
+Loads pre-extracted event samples for each research question and creates stratified splits.
 
-**Each RQ has two methods**:
+### Initialization
 
-1. load_rqX_samples() — loads all samples from disk
-2. get_rqX_split() — splits into train (70%) / val (10%) / test (20%)
+1. Base path defaults to:
+   1. Path(RECORDINGS_DIR) / Path(DIR)
+2. Class labels:
+   1. rock -> 0
+   2. paper -> 1
+   3. scissor -> 2
 
-### RQ1: Window Length Comparison
+### RQ1 methods
 
-**Tests**: Does window length (20ms vs 30ms vs 50ms) affect accuracy?
+1. load_rq1_samples()
+   1. Loads event_samples_rq1.npy per recording.
+   2. Returns arrays for windows: 20ms, 30ms, 50ms.
+2. get_rq1_split(dataset, window, test_size=0.2, val_size=0.1)
+   1. Stratified split with fixed seeds.
+   2. Returns X_train, y_train, X_val, y_val, X_test, y_test.
 
-```python
-loader = GestureDataset()
-rq1_data = loader.load_rq1_samples()  # loads 20ms, 30ms, 50ms samples
+### RQ2 methods
 
-for window in ['20ms', '30ms', '50ms']:
-    split = loader.get_rq1_split(rq1_data, window)
-    # train model on split['X_train'], split['y_train']
-```
+1. load_rq2_samples()
+   1. Loads event_samples_rq2.npy per recording.
+   2. Returns arrays for landmarks: t_initial, t_early, t_mid, t_late.
+2. get_rq2_split(dataset, landmark, test_size=0.2, val_size=0.1)
+   1. Stratified split with fixed seeds.
+   2. Returns X_train, y_train, X_val, y_val, X_test, y_test.
 
-### RQ2: Temperal Landmark Comparison
+### RQ3 methods
 
-**Tests**: Can we predict gestures early (t_initial) or must we wait (t_late)?
-
-```python
-rq2_data = loader.load_rq2_samples()  # loads t_initial, t_early, t_mid, t_late
-
-for landmark in ['t_initial', 't_early', 't_mid', 't_late']:
-    split = loader.get_rq2_split(rq2_data, landmark)
-    # train model on split['X_train'], split['y_train']
-```
-
-### RQ3: Representation Comparison
-
-**Tests**: Which event encoding (2D histogram vs 3D voxel vs time surface) works best?
-
-```python
-rq3_data = loader.load_rq3_samples()  # loads histogram, voxel_grid, time_surface
-
-for rep in ['histogram', 'voxel_grid', 'time_surface']:
-    split = loader.get_rq3_split(rq3_data, rep)
-    # train model on split['X_train'], split['y_train']
-```
-
-## utils.py
+1. load_rq3_samples()
+   1. Loads event_samples_rq3.npy per recording.
+   2. Returns arrays for representations: histogram, voxel_grid, time_surface.
+2. get_rq3_split(dataset, representation, test_size=0.2, val_size=0.1)
+   1. Stratified split with fixed seeds.
+   2. Returns X_train, y_train, X_val, y_val, X_test, y_test.

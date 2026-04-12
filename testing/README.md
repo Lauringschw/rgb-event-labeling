@@ -1,36 +1,40 @@
-# test_rgb.py
+# Testing Utilities
 
-View one frame from Basler in gray scale
+This folder contains quick scripts to inspect recorded RGB/event data and timing metadata.
 
-# test_dvs.py
+## Scripts Overview
 
-**Explanation of EventsIterator and event instances**
+1. test_rgb.py
+   1. Loads one Basler raw frame and displays it in grayscale.
+   2. Useful for checking image quality and frame indexing.
+2. test_dvs.py
+   1. Reads one Prophesee event file and summarizes event timeline.
+   2. Prints total events, first timestamp, last timestamp, and duration.
+3. npy.py
+   1. Loads basler_frame_timestamps.npy and prints its values.
+   2. Useful for verifying frame-to-time mapping exists.
+4. go_getter.py
+   1. Loads recording_metadata.npy and prints GO-related information.
+   2. Useful for confirming expected GO timing/frame before labeling.
 
-```python
-mv_it = EventsIterator(str(paths[0]))
+## Quick usage
 
-for ev in mv_it:
+Run from the project root:
+
+```bash
+python testing/test_rgb.py
+python testing/test_dvs.py
+python testing/npy.py
+python testing/go_getter.py
 ```
 
-**One instance of ev**:
+## Typical outputs
 
-- ev["x"] → array([120, 305, 89, ...]) # pixel x-coordinates
-- ev["y"] → array([200, 150, 340, ...]) # pixel y-coordinates
-- ev["t"] → array([6154, 6180, 6205, ...]) # timestamps in microseconds
-- ev["p"] → array([1, 0, 1, ...]) # polarity (ON=1, OFF=0)
-
-Each iteration gives you one batch of events (10k-100k events)
-
-**Example**:
-
-```python
-# Batch 1: 50k events from t=6154 to t=50200
-ev["t"] = [6154, 6180, 6205, ..., 50200]  # len = 50000
-ev["x"] = [120, 305, 89, ..., 440]
-
-# Batch 2: 50k events from t=50201 to t=95800
-ev["t"] = [50201, 50230, 50255, ..., 95800]  # len = 50000
-
-# Batch 3: 23k events from t=95801 to t=120000
-ev["t"] = [95801, 95830, ..., 120000]  # len = 23000
-```
+1. test_rgb.py
+   1. One plotted grayscale frame window.
+2. test_dvs.py
+   1. Event count and recording duration in seconds.
+3. npy.py
+   1. NumPy array of Basler frame timestamps.
+4. go_getter.py
+   1. Metadata dictionary and GO summary fields.

@@ -1,57 +1,105 @@
 # RQ3: Event Representation Comparison
 
-**Research Question:** Which event encoding (2D histogram vs 3D voxel grid vs time surface) captures gesture dynamics most effectively?
+## Goal
 
-## **extract_samples_rq3.py**
+Test which event representation gives the best gesture classification performance.
 
-Generates training samples by encoding the same events (t_initial + 50ms window) in **three different representations**.
+Representations compared:
 
-**Input:**
+1. histogram (2D)
+2. voxel_grid (3D)
+3. time_surface (2D)
 
-- `labels.npy` (from manual labeling)
-- `recording_*.raw` (DVS event file)
+Fixed extraction setting:
 
-**Output:**
+1. Landmark: t_initial
+2. Window length: 50 ms
 
-- `event_samples_rq3.npy` containing:
-  ```python
-  {
-      'histogram':    (720, 1280) 2D event count,
-      'voxel_grid':   (5, 720, 1280) 3D temporal bins,
-      'time_surface': (720, 1280) 2D recency map
-  }
-  ```
+## End-to-end flow
 
-**Run once per recording after labeling:**
+```text
+labels + events
+    -> extract_samples_rq3.py
+    -> event_samples_rq3.npy (histogram, voxel_grid, time_surface)
+    -> train_model_rq3.py
+    -> 3 trained models + rq3_results.npy
+```
+
+## Step 1: Build RQ3 samples
+
+Script: extract_samples_rq3.py
+
+What it reads per recording:
+
+1. labels.npy for t_initial timestamp
+2. prophesee_events.raw for DVS events
+
+What it creates:
+
+1. event_samples_rq3.npy with three encodings of the same event window:
+1. histogram: 2D event-count map
+1. voxel_grid: 3D time-binned representation (5 bins)
+1. time_surface: 2D latest-event recency map
+
+How it behaves:
+
+1. Iterates all gesture folders and recording subfolders
+2. Extracts events from [t_initial, t_initial + 50 ms)
+3. Converts that event subset into the three representations
+
+Run:
 
 ```bash
 python extract_samples_rq3.py
 ```
 
-## **train_model_rq3.py**
+## Step 2: Train and compare representations
 
-Trains three models with different architectures (2D CNN for histogram/time_surface, 3D CNN for voxel_grid) and compares accuracy.
+Script: train_model_rq3.py
 
-**What it does:**
+What it does:
 
-1. Loads all `event_samples_rq3.npy` files
-2. Splits into train/val/test (70%/10%/20%)
-3. Trains models for each representation:
-   - **histogram** → 2D CNN (spatial event count)
-   - **voxel_grid** → 3D CNN (temporal + spatial bins)
-   - **time_surface** → 2D CNN (event recency)
-4. Evaluates on test set
-5. Saves models and results
+1. Loads RQ3 samples through GestureDataset
+2. For each representation:
+3. Builds stratified train/val/test splits
+4. Selects model type by input structure
+5. Trains and keeps the best checkpoint by validation accuracy
+6. Evaluates test accuracy
+7. Prints confusion matrix and classification report
+8. Saves model weights and summary results
 
-**Output:**
+Model assignment:
 
-- `model_histogram.pth`, `model_voxel_grid.pth`, `model_time_surface.pth`
-- `rq3_results.npy` (accuracy comparison)
+1. histogram -> 2D CNN
+2. voxel_grid -> 3D CNN
+3. time_surface -> 2D CNN
 
-**Run after all samples are generated:**
+Run:
 
 ```bash
 python train_model_rq3.py
 ```
 
-**Answers RQ3:** Compares accuracy across event representations → identifies optimal encoding for gesture classification with event cameras.
+## Outputs
+
+| Artifact              | Location              | Purpose                                         |
+| --------------------- | --------------------- | ----------------------------------------------- |
+| event_samples_rq3.npy | each recording folder | three encoded versions of the same event window |
+| rq3_histogram.pth     | MODEL_DIR             | best model for histogram representation         |
+| rq3_voxel_grid.pth    | MODEL_DIR             | best model for voxel grid representation        |
+| rq3_time_surface.pth  | MODEL_DIR             | best model for time surface representation      |
+| rq3_results.npy       | RESULTS_DIR           | representation-level evaluation summary         |
+
+## Recommended run order
+
+1. Ensure recordings are labeled (labels.npy present)
+2. Run sample extraction
+3. Run representation training
+4. Compare test accuracy across the three encodings
+
+## RQ3 answer criterion
+
+RQ3 is answered by the final test-accuracy comparison:
+
+1. Higher test accuracy indicates the more effective event representation for this dataset
+2. The saved results file contains all representation-level metrics together
