@@ -183,8 +183,8 @@ def train_representation_model(representation, split, epochs=50, batch_size=16, 
     test_acc, test_preds, test_labels = evaluate(model, test_loader, device)
     
     print(f'\n{representation} Results:')
-    print(f'  Best val accuracy: {best_val_acc:.2f}%')
-    print(f'  Test accuracy: {test_acc:.2f}%')
+    print(f'  Best val accuracy: {best_val_acc*100:.2f}%')
+    print(f'  Test accuracy: {test_acc*100:.2f}%')
     
     # confusion matrix
     cm = confusion_matrix(test_labels, test_preds)
@@ -228,7 +228,7 @@ if __name__ == '__main__':
     print('RQ3 RESULTS SUMMARY: Event Representation Comparison')
     print('='*60)
     for rep in ['histogram', 'voxel_grid', 'time_surface']:
-        print(f'{rep:<15}: test_acc={results[rep]["test_accuracy"]:.2f}%')
+        print(f'{rep:<15}: test_acc={results[rep]["test_accuracy"]*100:.2f}%')
     
     # save results
     results_path = Path(os.getenv('RESULTS_DIR')) / 'rq3_results.npy'
