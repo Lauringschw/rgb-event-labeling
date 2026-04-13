@@ -33,7 +33,6 @@ class RecordingGUI:
         self.initialize_cameras()
         
     def setup_ui(self):
-        # Create main frame with canvas for scrolling
         main_container = ttk.Frame(self.root)
         main_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
@@ -64,7 +63,7 @@ class RecordingGUI:
         canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         
-        # Now use scrollable_frame as the main frame with padding
+        # scrollable_frame
         main_frame = ttk.Frame(scrollable_frame, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
@@ -122,7 +121,7 @@ class RecordingGUI:
         self.recording_num_var.trace('w', lambda *args: self.update_output_path())
         self.update_output_path()
         
-        # Buttons frame (moved before status text)
+        # Buttons frame
         btn_frame = ttk.Frame(main_frame)
         btn_frame.grid(row=3, column=0, columnspan=2, pady=10)
         
@@ -161,7 +160,7 @@ class RecordingGUI:
         try:
             gesture = self.gesture_var.get()
             num = int(self.recording_num_var.get())
-            prefix = gesture[0]  # r, p, or s
+            prefix = gesture[0]  # r, p, s, or o
             path = f"{gesture}/{prefix}_{num}"
             self.output_path_label.config(text=path)
         except:
@@ -201,11 +200,10 @@ class RecordingGUI:
             self.camera_basler.Open()
             
             # Load UserSet1
-            # NOTE: if your Pylon Viewer is using the Default User Set, change this to "Default User Set"
             try:
                 self.camera_basler.UserSetSelector.SetValue("UserSet1")
                 self.camera_basler.UserSetLoad.Execute()
-                self.log("✓ Loaded UserSet1")
+                self.log("- Loaded UserSet1")
 
                 try:
                     active_set = self.camera_basler.UserSetSelector.GetValue()
@@ -218,35 +216,33 @@ class RecordingGUI:
                     fps_enabled = self.camera_basler.AcquisitionFrameRateEnable.GetValue()
                     self.log(f"  Loaded FPS: {actual_fps:.2f}, Enabled: {fps_enabled}")
                 except Exception:
-                    self.log("  ⚠ Could not read loaded frame rate values")
+                    self.log("  !! Could not read loaded frame rate values")
             except Exception as e:
-                self.log(f"⚠ Could not load UserSet1: {e}")
+                self.log(f"!! Could not load UserSet1: {e}")
             
-            # Configure for continuous
             try:
                 self.camera_basler.AcquisitionMode.SetValue("Continuous")
                 self.camera_basler.AcquisitionFrameRateEnable.SetValue(True)
                 self.camera_basler.AcquisitionFrameRate.SetValue(140.0)
             except Exception as e:
-                self.log(f"⚠ Could not configure target FPS: {e}")
+                self.log(f"!! Could not configure target FPS: {e}")
 
             try:
                 final_fps = self.camera_basler.AcquisitionFrameRate.GetValue()
                 self.log(f"  Target FPS: 140.0, Actual FPS: {final_fps:.2f}")
             except Exception as e:
-                self.log(f"  ⚠ Could not verify configured FPS: {e}")
+                self.log(f"  !! Could not verify configured FPS: {e}")
             
-            # Configure trigger
             try:
                 self.camera_basler.LineSelector.SetValue("Line2")
                 self.camera_basler.LineMode.SetValue("Output")
                 self.camera_basler.LineSource.SetValue("ExposureActive")
                 self.camera_basler.LineInverter.SetValue(False)
-                self.log("✓ Trigger output configured")
+                self.log("- Trigger output configured")
             except Exception as e:
-                self.log(f"⚠ Trigger setup failed: {e}")
+                self.log(f"!! Trigger setup failed: {e}")
             
-            self.log("✓ Basler initialized")
+            self.log("- Basler initialized")
             self.log("\nReady to begin recording")
             
         except Exception as e:
@@ -255,7 +251,6 @@ class RecordingGUI:
     def capture_single(self):
         """Capture single calibration frame"""
         try:
-            # Build output path: base_dir/gesture/prefix_number/
             gesture = self.gesture_var.get()
             recording_num = int(self.recording_num_var.get())
             prefix = gesture[0]  # 'r', 'p', or 's'
@@ -274,12 +269,11 @@ class RecordingGUI:
                 calib_img = grab_result.Array
                 calib_path = self.output_dir / "calibration_frame.raw"
                 calib_img.tofile(calib_path)
-                self.log(f"✓ Calibration frame saved")
+                self.log(f"- Calibration frame saved")
             
             grab_result.Release()
             self.camera_basler.StopGrabbing()
             
-            # Re-configure for continuous
             self.camera_basler.AcquisitionMode.SetValue("Continuous")
             
             return True
@@ -291,7 +285,7 @@ class RecordingGUI:
     def capture_and_record(self):
         """Capture single frame then start recording"""
         if self.capture_single():
-            self.log("\n✓ Starting recording...")
+            self.log("\n- Starting recording...")
             self.start_recording()
             
     def start_recording(self):
@@ -315,29 +309,29 @@ class RecordingGUI:
                     bias_off = int(self.bias_off_var.get())
                     i_ll_biases.set("bias_diff_on", bias_on)
                     i_ll_biases.set("bias_diff_off", bias_off)
-                    self.log(f"✓ Biases set: {bias_on}, {bias_off}")
+                    self.log(f"- Biases set: {bias_on}, {bias_off}")
             except Exception as e:
-                self.log(f"⚠ Bias config: {e}")
+                self.log(f"!! Bias config: {e}")
             
             # Configure trigger
             try:
                 i_trigger_in = self.device.get_i_trigger_in()
                 if i_trigger_in:
                     i_trigger_in.enable(I_TriggerIn.Channel.MAIN)
-                    self.log("✓ Trigger enabled")
+                    self.log("- Trigger enabled")
             except Exception as e:
-                self.log(f"⚠ Trigger: {e}")
+                self.log(f"!! Trigger: {e}")
             
             # Start recording
             prophesee_output = str(self.output_dir / "prophesee_events.raw")
             self.i_events_stream = self.device.get_i_events_stream()
             self.i_events_stream.log_raw_data(prophesee_output)
             self.i_events_stream.start()
-            self.log("✓ Prophesee recording started")
+            self.log("- Prophesee recording started")
             
             # Start Basler
             self.camera_basler.StartGrabbing(pylon.GrabStrategy_OneByOne)
-            self.log("✓ Basler recording started")
+            self.log("- Basler recording started")
             
             # Reset counters
             self.frame_idx = 0
@@ -382,7 +376,7 @@ class RecordingGUI:
                                 small = Image.fromarray(img).resize((400, 250))
                                 photo = ImageTk.PhotoImage(small)
                                 self.preview_label.config(image=photo)
-                                self.preview_label.image = photo  # Keep reference
+                                self.preview_label.image = photo 
                             
                             timestamp_us = int(grab_result.TimeStamp)
                             self.basler_timestamps.append(timestamp_us)
@@ -401,7 +395,7 @@ class RecordingGUI:
             self.log("\n⏱ Recording 1 seconds...")
             time.sleep(1.0)
             
-            # Countdown with large display
+            # Countdown
             self.show_countdown("3", 'yellow')
             time.sleep(1.0)
             
@@ -419,13 +413,13 @@ class RecordingGUI:
             time.sleep(1.0)
             
             self.hide_countdown()
-            self.log("\n✓ Recording complete")
+            self.log("\n- Recording complete")
             
             # Auto-stop
             self.root.after(100, self.finish_recording)
             
         except Exception as e:
-            self.log(f"⚠ Error: {e}")
+            self.log(f"!! Error: {e}")
             self.hide_countdown()
             
     def stop_recording_manual(self):
@@ -437,7 +431,7 @@ class RecordingGUI:
         """Stop cameras and save data"""
         try:
             self.progress.stop()
-            self.log("\n⏹ Stopping cameras...")
+            self.log("\n=> Stopping cameras...")
             
             self.stop_recording = True
             time.sleep(0.5)
@@ -447,7 +441,7 @@ class RecordingGUI:
 
             self.camera_basler.StopGrabbing()
             end_time = time.time()
-            self.log(f"✓ Basler stopped ({self.frame_idx} frames)")
+            self.log(f"- Basler stopped ({self.frame_idx} frames)")
             
             self.log("  Flushing Prophesee buffer...")
             time.sleep(2)
@@ -467,7 +461,7 @@ class RecordingGUI:
                 self.device = None
                 time.sleep(0.5)  # Give it time to release
             
-            self.log("✓ Prophesee stopped")
+            self.log("- Prophesee stopped")
             
             # Save data
             timestamps_path = self.output_dir / "basler_frame_timestamps.npy"
@@ -486,7 +480,7 @@ class RecordingGUI:
                 np.save(metadata_path, metadata)
                 
                 elapsed = end_time - self.recording_start_time
-                self.log(f"\n✓ Recording complete!")
+                self.log(f"\n- Recording complete!")
                 self.log(f"  Duration: {elapsed:.1f}s")
                 self.log(f"  GO at: {metadata['go_offset_from_start']:.3f}s")
                 self.log(f"  GO frame: ~{metadata['expected_go_frame']}")
@@ -523,20 +517,20 @@ class RecordingGUI:
                         self.preview_label.image = photo
                         self.log("\n📸 Displayed GO frame")
                     except Exception as e:
-                        self.log(f"\n⚠ Could not display GO frame: {e}")
+                        self.log(f"\n!! Could not display GO frame: {e}")
                 else:
-                    # Try nearby frames if exact frame not found
+
                     for offset in [1, -1, 2, -2, 3, -3]:
                         nearby_frame_path = self.output_dir / f"Basler_acA1920-155um__{go_frame_idx + offset}.raw"
                         if nearby_frame_path.exists():
                             try:
                                 go_frame = np.fromfile(nearby_frame_path, dtype=np.uint8).reshape(1200, 1920)
                                 img = Image.fromarray(go_frame).convert('RGB')
-                                # Add "GO FRAME" text in red at bottom right
+
                                 draw = ImageDraw.Draw(img)
                                 text = "GO FRAME"
                                 font = ImageFont.load_default()
-                                # Try to use a larger font if available
+
                                 try:
                                     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 100)
                                 except:
@@ -557,7 +551,6 @@ class RecordingGUI:
                             except Exception as e:
                                 pass
             
-            # Reset UI
             self.btn_record.config(state='normal')
             self.btn_stop.config(state='disabled')
             
