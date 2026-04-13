@@ -180,7 +180,7 @@ class RecordingGUI:
             distance = self.distance_var.get()
             num = int(self.recording_num_var.get())
             prefix = gesture[0]  # r, p, s, or o
-            path = f"{gesture}/{distance}/{prefix}_{num}"
+            path = f"{gesture}/{prefix}_{num} (distance: {distance})"
             self.output_path_label.config(text=path)
         except:
             self.output_path_label.config(text="invalid number")
@@ -276,7 +276,7 @@ class RecordingGUI:
             prefix = gesture[0]  # 'r', 'p', or 's'
             
             base_dir = Path(self.base_dir_var.get())
-            self.output_dir = base_dir / gesture / distance / f"{prefix}_{recording_num}"
+            self.output_dir = base_dir / gesture / f"{prefix}_{recording_num}"
             self.output_dir.mkdir(parents=True, exist_ok=True)
             
             self.log(f"\n📸 Capturing single frame to {self.output_dir}...")
