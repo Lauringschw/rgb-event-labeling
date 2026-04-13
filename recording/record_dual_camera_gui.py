@@ -28,6 +28,7 @@ class RecordingGUI:
         self.recording_start_time = None
         self.frame_idx = 0
         self.basler_timestamps = []
+        self.manual_stop_requested = False
         
         self.setup_ui()
         self.initialize_cameras()
@@ -115,6 +116,14 @@ class RecordingGUI:
         ttk.Label(settings_frame, text="Will save to:").grid(row=3, column=0, sticky=tk.W, pady=5)
         self.output_path_label = ttk.Label(settings_frame, text="", foreground="blue")
         self.output_path_label.grid(row=3, column=1, sticky=tk.W, pady=5)
+
+        # Auto capture toggle
+        self.auto_capture_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            settings_frame,
+            text="Automatically do capture",
+            variable=self.auto_capture_var
+        ).grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=5)
         
         # Update output path when gesture or number changes
         self.gesture_var.trace('w', lambda *args: self.update_output_path())
@@ -291,6 +300,7 @@ class RecordingGUI:
     def start_recording(self):
         """Start dual camera recording with countdown"""
         try:
+            self.manual_stop_requested = False
             self.btn_record.config(state='disabled')
             self.btn_stop.config(state='normal')
             
@@ -424,6 +434,7 @@ class RecordingGUI:
             
     def stop_recording_manual(self):
         """Manual stop button"""
+        self.manual_stop_requested = True
         self.hide_countdown()
         self.finish_recording()
         
@@ -557,6 +568,10 @@ class RecordingGUI:
             # Increment recording number
             self.recording_num_var.set(str(int(self.recording_num_var.get()) + 1))
             self.update_output_path()
+
+            if self.auto_capture_var.get() and not self.manual_stop_requested:
+                self.log("\n- Auto capture enabled: starting next recording...")
+                self.root.after(500, self.capture_and_record)
             
         except Exception as e:
             messagebox.showerror("Error", f"Error finishing recording:\n{e}")
