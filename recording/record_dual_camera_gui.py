@@ -101,21 +101,29 @@ class RecordingGUI:
                                      values=["rock", "paper", "scissor", "other"], 
                                      state="readonly", width=15)
         gesture_combo.grid(row=0, column=1, sticky=tk.W, pady=5)
+
+        # Distance selection
+        ttk.Label(settings_frame, text="Distance:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        self.distance_var = tk.StringVar(value="medium")
+        distance_combo = ttk.Combobox(settings_frame, textvariable=self.distance_var,
+                                      values=["close", "medium", "far"],
+                                      state="readonly", width=15)
+        distance_combo.grid(row=1, column=1, sticky=tk.W, pady=5)
         
         # Recording number
-        ttk.Label(settings_frame, text="Recording #:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Label(settings_frame, text="Recording #:").grid(row=2, column=0, sticky=tk.W, pady=5)
         self.recording_num_var = tk.StringVar(value="1")
-        ttk.Entry(settings_frame, textvariable=self.recording_num_var, width=10).grid(row=1, column=1, sticky=tk.W, pady=5)
+        ttk.Entry(settings_frame, textvariable=self.recording_num_var, width=10).grid(row=2, column=1, sticky=tk.W, pady=5)
         
         # Base directory
-        ttk.Label(settings_frame, text="Base folder:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        ttk.Label(settings_frame, text="Base folder:").grid(row=3, column=0, sticky=tk.W, pady=5)
         self.base_dir_var = tk.StringVar(value=Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR")))
-        ttk.Entry(settings_frame, textvariable=self.base_dir_var, width=30).grid(row=2, column=1, sticky=tk.W, pady=5)
+        ttk.Entry(settings_frame, textvariable=self.base_dir_var, width=30).grid(row=3, column=1, sticky=tk.W, pady=5)
         
         # Current output path display
-        ttk.Label(settings_frame, text="Will save to:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        ttk.Label(settings_frame, text="Will save to:").grid(row=4, column=0, sticky=tk.W, pady=5)
         self.output_path_label = ttk.Label(settings_frame, text="", foreground="blue")
-        self.output_path_label.grid(row=3, column=1, sticky=tk.W, pady=5)
+        self.output_path_label.grid(row=4, column=1, sticky=tk.W, pady=5)
 
         # Auto capture toggle
         self.auto_capture_var = tk.BooleanVar(value=False)
@@ -123,10 +131,11 @@ class RecordingGUI:
             settings_frame,
             text="Automatically do capture",
             variable=self.auto_capture_var
-        ).grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=5)
+        ).grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=5)
         
         # Update output path when gesture or number changes
         self.gesture_var.trace('w', lambda *args: self.update_output_path())
+        self.distance_var.trace('w', lambda *args: self.update_output_path())
         self.recording_num_var.trace('w', lambda *args: self.update_output_path())
         self.update_output_path()
         
@@ -168,9 +177,10 @@ class RecordingGUI:
         """Update the output path display"""
         try:
             gesture = self.gesture_var.get()
+            distance = self.distance_var.get()
             num = int(self.recording_num_var.get())
             prefix = gesture[0]  # r, p, s, or o
-            path = f"{gesture}/{prefix}_{num}"
+            path = f"{gesture}/{distance}/{prefix}_{num}"
             self.output_path_label.config(text=path)
         except:
             self.output_path_label.config(text="invalid number")
@@ -261,11 +271,12 @@ class RecordingGUI:
         """Capture single calibration frame"""
         try:
             gesture = self.gesture_var.get()
+            distance = self.distance_var.get()
             recording_num = int(self.recording_num_var.get())
             prefix = gesture[0]  # 'r', 'p', or 's'
             
             base_dir = Path(self.base_dir_var.get())
-            self.output_dir = base_dir / gesture / f"{prefix}_{recording_num}"
+            self.output_dir = base_dir / gesture / distance / f"{prefix}_{recording_num}"
             self.output_dir.mkdir(parents=True, exist_ok=True)
             
             self.log(f"\n📸 Capturing single frame to {self.output_dir}...")
@@ -484,6 +495,7 @@ class RecordingGUI:
                     'recording_start_time': self.recording_start_time,
                     'go_offset_from_start': self.go_timestamp_system - self.recording_start_time,
                     'recording_end_time': end_time,
+                    'distance': self.distance_var.get(),
                     'total_frames': self.frame_idx,
                     'expected_go_frame': int((self.go_timestamp_system - self.recording_start_time) * 140)
                 }
