@@ -6,7 +6,7 @@ import time
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 from dotenv import load_dotenv
 import os
 
@@ -33,9 +33,40 @@ class RecordingGUI:
         self.initialize_cameras()
         
     def setup_ui(self):
-        # Main frame
-        main_frame = ttk.Frame(self.root, padding="20")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Create main frame with canvas for scrolling
+        main_container = ttk.Frame(self.root)
+        main_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # Configure grid weights for resizing
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+        main_container.grid_rowconfigure(0, weight=1)
+        main_container.grid_columnconfigure(0, weight=1)
+        
+        # Create canvas and scrollbar
+        canvas = tk.Canvas(main_container, highlightthickness=0, bg='gray90')
+        scrollbar = ttk.Scrollbar(main_container, orient='vertical', command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Mouse wheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        
+        # Now use scrollable_frame as the main frame with padding
+        main_frame = ttk.Frame(scrollable_frame, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Title
         title = ttk.Label(main_frame, text="Dual Camera Recording", 
@@ -87,31 +118,27 @@ class RecordingGUI:
         self.recording_num_var.trace('w', lambda *args: self.update_output_path())
         self.update_output_path()
         
-        # Status display
-        self.status_text = tk.Text(main_frame, height=12, width=60, state='disabled', 
-                                   bg='#f0f0f0', font=('Courier', 9))
-        self.status_text.grid(row=3, column=0, columnspan=2, pady=10)
-        
-        # Progress bar
-        self.progress = ttk.Progressbar(main_frame, length=520, mode='indeterminate')
-        self.progress.grid(row=4, column=0, columnspan=2, pady=5)
-        
-        # Buttons frame
+        # Buttons frame (moved before status text)
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.grid(row=5, column=0, columnspan=2, pady=10)
+        btn_frame.grid(row=3, column=0, columnspan=2, pady=10)
         
-        # Step buttons
-        self.btn_single = ttk.Button(btn_frame, text="1. Single Shot", 
-                                     command=self.capture_single, width=20)
-        self.btn_single.grid(row=0, column=0, padx=5, pady=5)
-        
-        self.btn_start = ttk.Button(btn_frame, text="2. Start Recording", 
-                                    command=self.start_recording, width=20, state='disabled')
-        self.btn_start.grid(row=0, column=1, padx=5, pady=5)
+        # Combined button
+        self.btn_record = ttk.Button(btn_frame, text="Capture & Record", 
+                                     command=self.capture_and_record, width=20)
+        self.btn_record.grid(row=0, column=0, padx=5, pady=5)
         
         self.btn_stop = ttk.Button(btn_frame, text="Stop Recording", 
                                    command=self.stop_recording_manual, width=20, state='disabled')
-        self.btn_stop.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
+        self.btn_stop.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Status display (moved after buttons)
+        self.status_text = tk.Text(main_frame, height=12, width=60, state='disabled', 
+                                   bg='#f0f0f0', font=('Courier', 9))
+        self.status_text.grid(row=4, column=0, columnspan=2, pady=10)
+        
+        # Progress bar (moved after status)
+        self.progress = ttk.Progressbar(main_frame, length=520, mode='indeterminate')
+        self.progress.grid(row=5, column=0, columnspan=2, pady=5)
         
         # Bias settings
         bias_frame = ttk.LabelFrame(main_frame, text="Prophesee Bias Settings", padding="10")
@@ -210,7 +237,7 @@ class RecordingGUI:
                 self.log(f"⚠ Trigger setup failed: {e}")
             
             self.log("✓ Basler initialized")
-            self.log("\nReady for single shot capture")
+            self.log("\nReady to begin recording")
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to initialize cameras:\n{e}")
@@ -228,7 +255,6 @@ class RecordingGUI:
             self.output_dir.mkdir(parents=True, exist_ok=True)
             
             self.log(f"\n📸 Capturing single frame to {self.output_dir}...")
-            self.btn_single.config(state='disabled')
             
             self.camera_basler.AcquisitionMode.SetValue("SingleFrame")
             self.camera_basler.StartGrabbing(pylon.GrabStrategy_OneByOne)
@@ -246,17 +272,22 @@ class RecordingGUI:
             # Re-configure for continuous
             self.camera_basler.AcquisitionMode.SetValue("Continuous")
             
-            self.log("\n✓ Ready to start recording")
-            self.btn_start.config(state='normal')
+            return True
             
         except Exception as e:
             messagebox.showerror("Error", f"Single shot failed:\n{e}")
-            self.btn_single.config(state='normal')
+            return False
+    
+    def capture_and_record(self):
+        """Capture single frame then start recording"""
+        if self.capture_single():
+            self.log("\n✓ Starting recording...")
+            self.start_recording()
             
     def start_recording(self):
         """Start dual camera recording with countdown"""
         try:
-            self.btn_start.config(state='disabled')
+            self.btn_record.config(state='disabled')
             self.btn_stop.config(state='normal')
             
             # Initialize Prophesee
@@ -313,7 +344,7 @@ class RecordingGUI:
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to start recording:\n{e}")
-            self.btn_start.config(state='normal')
+            self.btn_record.config(state='normal')
             self.btn_stop.config(state='disabled')
             
     def start_background_threads(self):
@@ -338,7 +369,7 @@ class RecordingGUI:
                             img.tofile(frame_path)
                             
                             if self.frame_idx % 5 == 0:
-                                small = Image.fromarray(img).resize((640, 400))
+                                small = Image.fromarray(img).resize((400, 250))
                                 photo = ImageTk.PhotoImage(small)
                                 self.preview_label.config(image=photo)
                                 self.preview_label.image = photo  # Keep reference
@@ -452,10 +483,73 @@ class RecordingGUI:
                 self.log(f"  GO frame: ~{metadata['expected_go_frame']}")
                 self.log(f"  Frames: {self.frame_idx}")
                 self.log(f"  Saved to: {self.output_dir}")
+                
+                # Display the GO frame
+                go_frame_idx = metadata['expected_go_frame']
+                go_frame_path = self.output_dir / f"Basler_acA1920-155um__{go_frame_idx}.raw"
+                
+                if go_frame_path.exists():
+                    try:
+                        go_frame = np.fromfile(go_frame_path, dtype=np.uint8).reshape(1200, 1920)
+                        img = Image.fromarray(go_frame).convert('RGB')
+                        # Add "GO FRAME" text in red at bottom right
+                        draw = ImageDraw.Draw(img)
+                        text = "GO FRAME"
+                        font = ImageFont.load_default()
+                        # Try to use a larger font if available
+                        try:
+                            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 100)
+                        except:
+                            pass
+                        bbox = draw.textbbox((0, 0), text, font=font)
+                        text_width = bbox[2] - bbox[0]
+                        text_height = bbox[3] - bbox[1]
+                        x = 1920 - text_width - 20
+                        y = 1200 - text_height - 20
+                        draw.text((x, y), text, fill=(255, 0, 0), font=font)
+                        
+                        small_go = img.resize((400, 250))
+                        photo = ImageTk.PhotoImage(small_go)
+                        self.preview_label.config(image=photo)
+                        self.preview_label.image = photo
+                        self.log("\n📸 Displayed GO frame")
+                    except Exception as e:
+                        self.log(f"\n⚠ Could not display GO frame: {e}")
+                else:
+                    # Try nearby frames if exact frame not found
+                    for offset in [1, -1, 2, -2, 3, -3]:
+                        nearby_frame_path = self.output_dir / f"Basler_acA1920-155um__{go_frame_idx + offset}.raw"
+                        if nearby_frame_path.exists():
+                            try:
+                                go_frame = np.fromfile(nearby_frame_path, dtype=np.uint8).reshape(1200, 1920)
+                                img = Image.fromarray(go_frame).convert('RGB')
+                                # Add "GO FRAME" text in red at bottom right
+                                draw = ImageDraw.Draw(img)
+                                text = "GO FRAME"
+                                font = ImageFont.load_default()
+                                # Try to use a larger font if available
+                                try:
+                                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 100)
+                                except:
+                                    pass
+                                bbox = draw.textbbox((0, 0), text, font=font)
+                                text_width = bbox[2] - bbox[0]
+                                text_height = bbox[3] - bbox[1]
+                                x = 1920 - text_width - 20
+                                y = 1200 - text_height - 20
+                                draw.text((x, y), text, fill=(255, 0, 0), font=font)
+                                
+                                small_go = img.resize((400, 250))
+                                photo = ImageTk.PhotoImage(small_go)
+                                self.preview_label.config(image=photo)
+                                self.preview_label.image = photo
+                                self.log(f"\n📸 Displayed GO frame (offset: {offset})")
+                                break
+                            except Exception as e:
+                                pass
             
             # Reset UI
-            self.btn_single.config(state='normal')
-            self.btn_start.config(state='disabled')
+            self.btn_record.config(state='normal')
             self.btn_stop.config(state='disabled')
             
             # Increment recording number
