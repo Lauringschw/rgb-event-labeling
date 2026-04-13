@@ -80,6 +80,10 @@ class RecordingGUI:
         self.preview_label = tk.Label(display_frame, bg='black')
         self.preview_label.pack()
 
+        self.black_preview = ImageTk.PhotoImage(Image.new('RGB', (400, 250), 'black'))
+        self.preview_label.config(image=self.black_preview)
+        self.preview_label.image = self.black_preview
+
         self.countdown_label = tk.Label(display_frame, text="", 
                                        font=('Arial', 120, 'bold'),
                                        fg='red', bg='black')
@@ -163,6 +167,12 @@ class RecordingGUI:
         except:
             self.output_path_label.config(text="invalid number")
         
+    def set_black_preview(self):
+        """Show a black preview screen when no footage is available"""
+        if hasattr(self, 'black_preview'):
+            self.preview_label.config(image=self.black_preview)
+            self.preview_label.image = self.black_preview
+
     def show_countdown(self, text, color='red'):
         """Show countdown overlay"""
         self.countdown_label.config(text=text, fg=color)
@@ -433,9 +443,8 @@ class RecordingGUI:
             time.sleep(0.5)
             
             # Clear preview image
-            self.preview_label.config(image='')
-            self.preview_label.image = None
-            
+            self.set_black_preview()
+
             self.camera_basler.StopGrabbing()
             end_time = time.time()
             self.log(f"✓ Basler stopped ({self.frame_idx} frames)")
