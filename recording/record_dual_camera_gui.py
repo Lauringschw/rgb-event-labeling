@@ -6,6 +6,7 @@ import time
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
+from PIL import Image, ImageTk
 from dotenv import load_dotenv
 import os
 
@@ -41,13 +42,19 @@ class RecordingGUI:
                          font=('Arial', 16, 'bold'))
         title.grid(row=0, column=0, columnspan=2, pady=10)
         
-        # LARGE COUNTDOWN DISPLAY
-        self.countdown_label = tk.Label(main_frame, text="", 
+        # Layered display frame for preview + countdown overlay
+        display_frame = tk.Frame(main_frame, bg='black')
+        display_frame.grid(row=1, column=0, columnspan=2, pady=10)
+
+        self.preview_label = tk.Label(display_frame, bg='black')
+        self.preview_label.pack()
+
+        self.countdown_label = tk.Label(display_frame, text="", 
                                        font=('Arial', 120, 'bold'),
-                                       fg='red', bg='black', width=5, height=2)
-        self.countdown_label.grid(row=1, column=0, columnspan=2, pady=20, sticky=(tk.W, tk.E))
-        self.countdown_label.grid_remove()  # Hidden initially
-        
+                                       fg='red', bg='black')
+        self.countdown_label.place(relx=0.5, rely=0.5, anchor='center')
+        self.countdown_label.lower()
+
         # Recording settings frame
         settings_frame = ttk.LabelFrame(main_frame, text="Recording Settings", padding="10")
         settings_frame.grid(row=2, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
@@ -130,14 +137,15 @@ class RecordingGUI:
             self.output_path_label.config(text="invalid number")
         
     def show_countdown(self, text, color='red'):
-        """Show large countdown number"""
+        """Show countdown overlay"""
         self.countdown_label.config(text=text, fg=color)
-        self.countdown_label.grid()
+        self.countdown_label.lift()
         self.root.update()
         
     def hide_countdown(self):
-        """Hide countdown display"""
-        self.countdown_label.grid_remove()
+        """Hide countdown overlay"""
+        self.countdown_label.config(text="")
+        self.countdown_label.lower()
         self.root.update()
         
     def log(self, message):
@@ -306,6 +314,12 @@ class RecordingGUI:
                             frame_path = self.output_dir / f"Basler_acA1920-155um__{self.frame_idx}.raw"
                             img.tofile(frame_path)
                             
+                            if self.frame_idx % 5 == 0:
+                                small = Image.fromarray(img).resize((640, 400))
+                                photo = ImageTk.PhotoImage(small)
+                                self.preview_label.config(image=photo)
+                                self.preview_label.image = photo  # Keep reference
+                            
                             timestamp_us = int(grab_result.TimeStamp)
                             self.basler_timestamps.append(timestamp_us)
                             
@@ -320,8 +334,8 @@ class RecordingGUI:
     def countdown_sequence(self):
         """Countdown: 2s wait, 3-2-1, GO, 2s wait"""
         try:
-            self.log("\n⏱ Recording 2 seconds...")
-            time.sleep(2.0)
+            self.log("\n⏱ Recording 1 seconds...")
+            time.sleep(1.0)
             
             # Countdown with large display
             self.show_countdown("3", 'yellow')
@@ -338,7 +352,7 @@ class RecordingGUI:
             
             self.go_timestamp_system = time.time()
             
-            time.sleep(2.0)
+            time.sleep(1.0)
             
             self.hide_countdown()
             self.log("\n✓ Recording complete")
@@ -363,6 +377,10 @@ class RecordingGUI:
             
             self.stop_recording = True
             time.sleep(0.5)
+            
+            # Clear preview image
+            self.preview_label.config(image='')
+            self.preview_label.image = None
             
             self.camera_basler.StopGrabbing()
             end_time = time.time()

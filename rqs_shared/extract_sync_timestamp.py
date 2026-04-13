@@ -39,6 +39,10 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
     print(f"last trigger:  {trigger_times[-1]} µs ({trigger_times[-1] / 1e6:.6f}s)")
     print(f"duration: {(trigger_times[-1] - trigger_times[0]) / 1e6:.6f}s")
 
+    duration_s = (trigger_times[-1] - trigger_times[0]) / 1e6
+    fps = (len(trigger_times) - 1) / duration_s
+    print(f"Actual FPS: {fps:.2f}")
+
     return trigger_times
 
 
@@ -46,7 +50,7 @@ if __name__ == "__main__":
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
 
     # Process all recordings
-    for gesture in ['rock', 'paper', 'scissor']:
+    for gesture in ['rock', 'paper', 'scissor', 'other']:
         prefix = gesture[0]  # r, p, s
         
         for i in range(1, 100):  # 1 to 1000
