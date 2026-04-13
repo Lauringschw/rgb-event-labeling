@@ -164,17 +164,40 @@ class RecordingGUI:
             self.camera_basler.Open()
             
             # Load UserSet1
+            # NOTE: if your Pylon Viewer is using the Default User Set, change this to "Default User Set"
             try:
                 self.camera_basler.UserSetSelector.SetValue("UserSet1")
                 self.camera_basler.UserSetLoad.Execute()
                 self.log("✓ Loaded UserSet1")
-            except:
-                self.log("⚠ Could not load UserSet1")
+
+                try:
+                    active_set = self.camera_basler.UserSetSelector.GetValue()
+                    self.log(f"  Active UserSetSelector: {active_set}")
+                except Exception:
+                    pass
+
+                try:
+                    actual_fps = self.camera_basler.AcquisitionFrameRate.GetValue()
+                    fps_enabled = self.camera_basler.AcquisitionFrameRateEnable.GetValue()
+                    self.log(f"  Loaded FPS: {actual_fps:.2f}, Enabled: {fps_enabled}")
+                except Exception:
+                    self.log("  ⚠ Could not read loaded frame rate values")
+            except Exception as e:
+                self.log(f"⚠ Could not load UserSet1: {e}")
             
             # Configure for continuous
-            self.camera_basler.AcquisitionMode.SetValue("Continuous")
-            self.camera_basler.AcquisitionFrameRateEnable.SetValue(True)
-            self.camera_basler.AcquisitionFrameRate.SetValue(140.0)
+            try:
+                self.camera_basler.AcquisitionMode.SetValue("Continuous")
+                self.camera_basler.AcquisitionFrameRateEnable.SetValue(True)
+                self.camera_basler.AcquisitionFrameRate.SetValue(140.0)
+            except Exception as e:
+                self.log(f"⚠ Could not configure target FPS: {e}")
+
+            try:
+                final_fps = self.camera_basler.AcquisitionFrameRate.GetValue()
+                self.log(f"  Target FPS: 140.0, Actual FPS: {final_fps:.2f}")
+            except Exception as e:
+                self.log(f"  ⚠ Could not verify configured FPS: {e}")
             
             # Configure trigger
             try:
