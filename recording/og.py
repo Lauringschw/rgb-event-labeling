@@ -29,7 +29,6 @@ class RecordingGUI:
         self.frame_idx = 0
         self.basler_timestamps = []
         self.manual_stop_requested = False
-        self.show_dvs_feed = False
         
         self.setup_ui()
         self.initialize_cameras()
@@ -376,50 +375,9 @@ class RecordingGUI:
     def start_background_threads(self):
         """Start Prophesee polling and Basler frame grabbing"""
         def prophesee_poll():
-            # Simple event visualization frame
-            event_frame = np.zeros((720, 1280), dtype=np.uint8)
-            last_vis_update = time.time()
-
             while not self.stop_recording:
                 try:
                     self.i_events_stream.get_latest_raw_data()
-
-                    # Update DVS preview if enabled
-                    if self.show_dvs_feed and (time.time() - last_vis_update) > 0.1:  # 10fps update
-                        # Decay previous events
-                        event_frame = (event_frame * 0.9).astype(np.uint8)
-
-                        # Read recent events from the raw file being written
-                        try:
-                            from metavision_sdk_core import EventsIterator
-                            raw_path = str(self.output_dir / "prophesee_events.raw")
-
-                            # Read last chunk of events
-                            ev_iter = EventsIterator(raw_path)
-                            events = None
-                            for ev in ev_iter:
-                                events = ev  # get last batch
-
-                            if events is not None and len(events) > 0:
-                                # Take last 5000 events for visualization
-                                recent = events[-5000:]
-                                for ev in recent:
-                                    x, y = int(ev['x']), int(ev['y'])
-                                    if 0 <= x < 1280 and 0 <= y < 720:
-                                        # Bright spot for each event
-                                        event_frame[y, x] = 255
-
-                            # Display
-                            small = Image.fromarray(event_frame).resize((400, 250))
-                            photo = ImageTk.PhotoImage(small)
-                            self.preview_label.config(image=photo)
-                            self.preview_label.image = photo
-
-                        except Exception:
-                            pass  # Ignore errors during visualization
-
-                        last_vis_update = time.time()
-
                     time.sleep(0.001)
                 except:
                     break
@@ -434,9 +392,8 @@ class RecordingGUI:
                             img = grab_result.Array
                             frame_path = self.output_dir / f"Basler_acA1920-155um__{self.frame_idx}.raw"
                             img.tofile(frame_path)
-
-                            # Only show RGB preview when DVS feed is disabled
-                            if not self.show_dvs_feed and self.frame_idx % 5 == 0:
+                            
+                            if self.frame_idx % 5 == 0:
                                 small = Image.fromarray(img).resize((400, 250))
                                 photo = ImageTk.PhotoImage(small)
                                 self.preview_label.config(image=photo)
@@ -454,13 +411,10 @@ class RecordingGUI:
         threading.Thread(target=grab_frames, daemon=True).start()
         
     def countdown_sequence(self):
-        """Countdown: 1s wait, 3-2-1, GO, 1s wait"""
+        """Countdown: 2s wait, 3-2-1, GO, 2s wait"""
         try:
-            # self.log("\n⏱ Recording 0.5 seconds...")
-            # time.sleep(0.5)
-
-            # Enable DVS feed during countdown
-            self.show_dvs_feed = True
+            self.log("\n⏱ Recording 1 seconds...")
+            time.sleep(1.0)
             
             # Countdown
             self.show_countdown("3", 'yellow')
@@ -476,9 +430,6 @@ class RecordingGUI:
             self.log("GO! 🎯")
             
             self.go_timestamp_system = time.time()
-
-            # Switch to RGB preview after GO
-            self.show_dvs_feed = False
             
             time.sleep(1.0)
             
