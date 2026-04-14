@@ -434,7 +434,7 @@ class RecordingGUI:
                             img = grab_result.Array
                             frame_path = self.output_dir / f"Basler_acA1920-155um__{self.frame_idx}.raw"
                             img.tofile(frame_path)
-
+                            
                             # Only show RGB preview when DVS feed is disabled
                             if not self.show_dvs_feed and self.frame_idx % 5 == 0:
                                 small = Image.fromarray(img).resize((400, 250))
@@ -454,11 +454,8 @@ class RecordingGUI:
         threading.Thread(target=grab_frames, daemon=True).start()
         
     def countdown_sequence(self):
-        """Countdown: 1s wait, 3-2-1, GO, 1s wait"""
+        """Countdown: 3-2-1, GO"""
         try:
-            # self.log("\n⏱ Recording 0.5 seconds...")
-            # time.sleep(0.5)
-
             # Enable DVS feed during countdown
             self.show_dvs_feed = True
             
