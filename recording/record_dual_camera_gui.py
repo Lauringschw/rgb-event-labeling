@@ -29,7 +29,6 @@ class RecordingGUI:
         self.frame_idx = 0
         self.basler_timestamps = []
         self.manual_stop_requested = False
-        self.show_dvs_feed = False
         
         self.setup_ui()
         self.initialize_cameras()
@@ -350,10 +349,7 @@ class RecordingGUI:
             self.i_events_stream.log_raw_data(prophesee_output)
             self.i_events_stream.start()
             self.log("- Prophesee recording started")
-            
-            # Start Basler
-            self.camera_basler.StartGrabbing(pylon.GrabStrategy_OneByOne)
-            self.log("- Basler recording started")
+
             
             # Reset counters
             self.frame_idx = 0
@@ -376,59 +372,9 @@ class RecordingGUI:
     def start_background_threads(self):
         """Start Prophesee polling and Basler frame grabbing"""
         def prophesee_poll():
-            from metavision_core.event_io import EventsIterator
-
-            # Simple event visualization frame
-            event_frame = np.zeros((720, 1280), dtype=np.uint8)
-            last_vis_update = time.time()
-            
-            # Create iterator for live events
-            raw_path = str(self.output_dir / "prophesee_events.raw")
-
             while not self.stop_recording:
                 try:
-                    # Pull latest events from stream
                     self.i_events_stream.get_latest_raw_data()
-
-                    # Update DVS preview if enabled
-                    if self.show_dvs_feed and (time.time() - last_vis_update) > 0.05:  # 20fps update
-                        try:
-                            # Decay previous frame
-                            event_frame = (event_frame * 0.85).astype(np.uint8)
-
-                            # Try to read newest events from file
-                            try:
-                                ev_iter = EventsIterator(raw_path)
-                                # Skip to end quickly
-                                event_buffer = None
-                                for ev in ev_iter:
-                                    event_buffer = ev
-
-                                # Draw recent events
-                                if event_buffer is not None and len(event_buffer) > 0:
-                                    recent = event_buffer[-3000:]  # last 3k events
-                                    xs = recent['x']
-                                    ys = recent['y']
-
-                                    # Vectorized drawing (much faster)
-                                    valid = (xs < 1280) & (ys < 720) & (xs >= 0) & (ys >= 0)
-                                    event_frame[ys[valid], xs[valid]] = 255
-
-                            except Exception:
-                                # File might not exist yet or be incomplete
-                                pass
-
-                            # Display
-                            small = Image.fromarray(event_frame).resize((400, 250))
-                            photo = ImageTk.PhotoImage(small)
-                            self.preview_label.config(image=photo)
-                            self.preview_label.image = photo
-
-                        except Exception:
-                            pass  # Ignore visualization errors
-
-                        last_vis_update = time.time()
-
                     time.sleep(0.001)
                 except:
                     break
@@ -444,8 +390,7 @@ class RecordingGUI:
                             frame_path = self.output_dir / f"Basler_acA1920-155um__{self.frame_idx}.raw"
                             img.tofile(frame_path)
                             
-                            # Only show RGB preview when DVS feed is disabled
-                            if not self.show_dvs_feed and self.frame_idx % 5 == 0:
+                            if self.frame_idx % 5 == 0:
                                 small = Image.fromarray(img).resize((400, 250))
                                 photo = ImageTk.PhotoImage(small)
                                 self.preview_label.config(image=photo)
@@ -463,10 +408,10 @@ class RecordingGUI:
         threading.Thread(target=grab_frames, daemon=True).start()
         
     def countdown_sequence(self):
-        """Countdown: 3-2-1, GO"""
+        """Countdown: 2s wait, 3-2-1, GO, 2s wait"""
         try:
-            # Enable DVS feed during countdown
-            self.show_dvs_feed = True
+            self.log("\n⏱ Recording 1 seconds...")
+            time.sleep(1.0)
             
             # Countdown
             self.show_countdown("3", 'yellow')
@@ -475,6 +420,10 @@ class RecordingGUI:
             self.show_countdown("2", 'orange')
             time.sleep(1.0)
             
+            # Start Basler capturing before countdown reaches 1
+            self.camera_basler.StartGrabbing(pylon.GrabStrategy_OneByOne)
+            self.log("- Basler recording started")
+            
             self.show_countdown("1", 'red')
             time.sleep(1.0)
             
@@ -482,9 +431,6 @@ class RecordingGUI:
             self.log("GO! 🎯")
             
             self.go_timestamp_system = time.time()
-
-            # Switch to RGB preview after GO
-            self.show_dvs_feed = False
             
             time.sleep(1.0)
             
