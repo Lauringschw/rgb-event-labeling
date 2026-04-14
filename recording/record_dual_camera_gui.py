@@ -376,38 +376,47 @@ class RecordingGUI:
     def start_background_threads(self):
         """Start Prophesee polling and Basler frame grabbing"""
         def prophesee_poll():
+            from metavision_core.event_io import EventsIterator
+
             # Simple event visualization frame
             event_frame = np.zeros((720, 1280), dtype=np.uint8)
             last_vis_update = time.time()
+            
+            # Create iterator for live events
+            raw_path = str(self.output_dir / "prophesee_events.raw")
 
             while not self.stop_recording:
                 try:
+                    # Pull latest events from stream
                     self.i_events_stream.get_latest_raw_data()
 
                     # Update DVS preview if enabled
-                    if self.show_dvs_feed and (time.time() - last_vis_update) > 0.1:  # 10fps update
-                        # Decay previous events
-                        event_frame = (event_frame * 0.9).astype(np.uint8)
-
-                        # Read recent events from the raw file being written
+                    if self.show_dvs_feed and (time.time() - last_vis_update) > 0.05:  # 20fps update
                         try:
-                            from metavision_sdk_core import EventsIterator
-                            raw_path = str(self.output_dir / "prophesee_events.raw")
+                            # Decay previous frame
+                            event_frame = (event_frame * 0.85).astype(np.uint8)
 
-                            # Read last chunk of events
-                            ev_iter = EventsIterator(raw_path)
-                            events = None
-                            for ev in ev_iter:
-                                events = ev  # get last batch
+                            # Try to read newest events from file
+                            try:
+                                ev_iter = EventsIterator(raw_path)
+                                # Skip to end quickly
+                                event_buffer = None
+                                for ev in ev_iter:
+                                    event_buffer = ev
 
-                            if events is not None and len(events) > 0:
-                                # Take last 5000 events for visualization
-                                recent = events[-5000:]
-                                for ev in recent:
-                                    x, y = int(ev['x']), int(ev['y'])
-                                    if 0 <= x < 1280 and 0 <= y < 720:
-                                        # Bright spot for each event
-                                        event_frame[y, x] = 255
+                                # Draw recent events
+                                if event_buffer is not None and len(event_buffer) > 0:
+                                    recent = event_buffer[-3000:]  # last 3k events
+                                    xs = recent['x']
+                                    ys = recent['y']
+
+                                    # Vectorized drawing (much faster)
+                                    valid = (xs < 1280) & (ys < 720) & (xs >= 0) & (ys >= 0)
+                                    event_frame[ys[valid], xs[valid]] = 255
+
+                            except Exception:
+                                # File might not exist yet or be incomplete
+                                pass
 
                             # Display
                             small = Image.fromarray(event_frame).resize((400, 250))
@@ -416,7 +425,7 @@ class RecordingGUI:
                             self.preview_label.image = photo
 
                         except Exception:
-                            pass  # Ignore errors during visualization
+                            pass  # Ignore visualization errors
 
                         last_vis_update = time.time()
 
