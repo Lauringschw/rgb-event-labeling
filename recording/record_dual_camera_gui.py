@@ -408,11 +408,8 @@ class RecordingGUI:
         threading.Thread(target=grab_frames, daemon=True).start()
         
     def countdown_sequence(self):
-        """Countdown: 2s wait, 3-2-1, GO, 2s wait"""
+        """Countdown: 3-2-1, GO with RGB preview"""
         try:
-            self.log("\n⏱ Recording 1 seconds...")
-            time.sleep(1.0)
-            
             # Countdown
             self.show_countdown("3", 'yellow')
             time.sleep(1.0)
@@ -458,9 +455,6 @@ class RecordingGUI:
             
             self.stop_recording = True
             time.sleep(0.5)
-            
-            # Clear preview image
-            self.set_black_preview()
 
             self.camera_basler.StopGrabbing()
             end_time = time.time()
