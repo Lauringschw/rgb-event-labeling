@@ -29,6 +29,13 @@ class RecordingGUI:
         self.frame_idx = 0
         self.basler_timestamps = []
         self.manual_stop_requested = False
+        self.show_event_feed = False
+        self.event_frame_buffer = np.zeros((720, 1280), dtype=np.float32)
+        self.event_vis_lock = threading.Lock()
+        self.last_event_vis_update = 0.0
+        self.i_events_stream_decoder = None
+        self.i_event_cd_decoder = None
+        self.event_decoder_ready = False
         
         self.setup_ui()
         self.initialize_cameras()
@@ -266,6 +273,50 @@ class RecordingGUI:
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to initialize cameras:\n{e}")
+
+    def setup_event_visualization(self):
+        """Configure Metavision decoders to build a live event-count image."""
+        self.event_decoder_ready = False
+
+        try:
+            self.i_events_stream_decoder = self.device.get_i_events_stream_decoder()
+            self.i_event_cd_decoder = self.device.get_i_event_cd_decoder()
+
+            if self.i_events_stream_decoder is None or self.i_event_cd_decoder is None:
+                self.log("!! Event decoder unavailable; countdown preview will stay black")
+                return
+
+            def on_cd_events(events):
+                if events is None or len(events) == 0:
+                    return
+
+                xs = events['x'].astype(np.intp, copy=False)
+                ys = events['y'].astype(np.intp, copy=False)
+                valid = (xs >= 0) & (xs < 1280) & (ys >= 0) & (ys < 720)
+
+                if not np.any(valid):
+                    return
+
+                with self.event_vis_lock:
+                    np.add.at(self.event_frame_buffer, (ys[valid], xs[valid]), 24.0)
+
+            self.i_event_cd_decoder.add_event_buffer_callback(on_cd_events)
+            self.event_decoder_ready = True
+            self.log("- Event visualization enabled")
+        except Exception as e:
+            self.log(f"!! Event visualization setup failed: {e}")
+
+    def update_event_preview(self):
+        """Render the accumulated event image to the preview widget."""
+        with self.event_vis_lock:
+            # Keep short persistence so motion is visible instead of single-pixel flashes.
+            self.event_frame_buffer *= 0.86
+            vis = np.clip(self.event_frame_buffer, 0, 255).astype(np.uint8)
+
+        img = Image.fromarray(vis, mode='L').convert('RGB').resize((400, 250))
+        photo = ImageTk.PhotoImage(img)
+        self.preview_label.config(image=photo)
+        self.preview_label.image = photo
             
     def capture_single(self):
         """Capture single calibration frame"""
@@ -350,12 +401,18 @@ class RecordingGUI:
             self.i_events_stream.start()
             self.log("- Prophesee recording started")
 
+            self.setup_event_visualization()
+
             
             # Reset counters
             self.frame_idx = 0
             self.basler_timestamps = []
             self.stop_recording = False
+            self.show_event_feed = False
             self.recording_start_time = time.time()
+            with self.event_vis_lock:
+                self.event_frame_buffer.fill(0)
+            self.last_event_vis_update = 0.0
             
             # Start background threads
             self.start_background_threads()
@@ -374,7 +431,16 @@ class RecordingGUI:
         def prophesee_poll():
             while not self.stop_recording:
                 try:
-                    self.i_events_stream.get_latest_raw_data()
+                    raw_data = self.i_events_stream.get_latest_raw_data()
+
+                    if raw_data is not None and self.event_decoder_ready:
+                        self.i_events_stream_decoder.decode(raw_data)
+
+                    now = time.time()
+                    if self.show_event_feed and (now - self.last_event_vis_update) >= 0.05:
+                        self.update_event_preview()
+                        self.last_event_vis_update = now
+
                     time.sleep(0.001)
                 except:
                     break
@@ -390,7 +456,7 @@ class RecordingGUI:
                             frame_path = self.output_dir / f"Basler_acA1920-155um__{self.frame_idx}.raw"
                             img.tofile(frame_path)
                             
-                            if self.frame_idx % 5 == 0:
+                            if (not self.show_event_feed) and self.frame_idx % 5 == 0:
                                 small = Image.fromarray(img).resize((400, 250))
                                 photo = ImageTk.PhotoImage(small)
                                 self.preview_label.config(image=photo)
@@ -412,6 +478,9 @@ class RecordingGUI:
         try:
             self.log("\n⏱ Recording 1 seconds...")
             time.sleep(1.0)
+
+            # During countdown, show a live DVS event feed.
+            self.show_event_feed = True
             
             # Countdown
             self.show_countdown("3", 'yellow')
@@ -431,6 +500,9 @@ class RecordingGUI:
             self.log("GO! 🎯")
             
             self.go_timestamp_system = time.time()
+
+            # Return to RGB preview after GO.
+            self.show_event_feed = False
             
             time.sleep(1.0)
             
@@ -457,6 +529,7 @@ class RecordingGUI:
             self.log("\n=> Stopping cameras...")
             
             self.stop_recording = True
+            self.show_event_feed = False
             time.sleep(0.5)
             
             # Clear preview image
