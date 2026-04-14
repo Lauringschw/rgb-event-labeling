@@ -349,10 +349,7 @@ class RecordingGUI:
             self.i_events_stream.log_raw_data(prophesee_output)
             self.i_events_stream.start()
             self.log("- Prophesee recording started")
-            
-            # Start Basler
-            self.camera_basler.StartGrabbing(pylon.GrabStrategy_OneByOne)
-            self.log("- Basler recording started")
+
             
             # Reset counters
             self.frame_idx = 0
@@ -422,6 +419,10 @@ class RecordingGUI:
             
             self.show_countdown("2", 'orange')
             time.sleep(1.0)
+            
+            # Start Basler capturing before countdown reaches 1
+            self.camera_basler.StartGrabbing(pylon.GrabStrategy_OneByOne)
+            self.log("- Basler recording started")
             
             self.show_countdown("1", 'red')
             time.sleep(1.0)
