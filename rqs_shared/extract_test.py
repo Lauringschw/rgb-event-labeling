@@ -8,6 +8,7 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 
 def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
+    """Extract rising-edge external trigger timestamps from a RAW file."""
     reader = RawReader(str(raw_path))
     trigger_times = []
 
@@ -50,6 +51,7 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
 
 
 def process_recording(folder: Path) -> bool:
+    """Extract and save trigger timestamps for a single recording."""
     raw_files = sorted(folder.glob("prophesee_events*.raw"))
     if not raw_files:
         return False
@@ -71,10 +73,18 @@ def process_recording(folder: Path) -> bool:
 
 if __name__ == "__main__":
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
-    gestures = ['rock', 'paper', 'scissor', 'other']
 
-    BATCH_SIZE = 100
-    processed_this_run = 0
+    gesture = os.getenv("GESTURE", "").strip().lower()
+    allowed_gestures = ["rock", "paper", "scissor", "other"]
+
+    if gesture:
+        if gesture not in allowed_gestures:
+            raise ValueError(
+                f"Invalid GESTURE='{gesture}'. Must be one of: {allowed_gestures}"
+            )
+        gestures = [gesture]
+    else:
+        gestures = allowed_gestures
 
     total_processed = 0
     total_failed = 0
@@ -91,20 +101,14 @@ if __name__ == "__main__":
             if not folder.exists():
                 break
 
-            if processed_this_run >= BATCH_SIZE:
-                print(f"\nReached batch limit of {BATCH_SIZE}. Restart the script to continue.")
-                raise SystemExit(0)
-
             print(f"\n{gesture}/{prefix}_{i}")
 
             if process_recording(folder):
                 total_processed += 1
                 gesture_processed += 1
-                processed_this_run += 1
             else:
                 total_failed += 1
                 gesture_failed += 1
-                processed_this_run += 1
 
             i += 1
 
