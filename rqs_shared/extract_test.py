@@ -55,6 +55,32 @@ def extract_trigger_timestamps(raw_path: Path, max_frames: int = 290) -> np.ndar
     return trigger_times
 
 
+def update_metadata_go_frame(folder: Path, new_n_frames: int) -> None:
+    """Update expected_go_frame in metadata if it exceeds new frame count."""
+    metadata_path = folder / "recording_metadata.npy"
+    
+    if not metadata_path.exists():
+        print(f"  ⚠ No metadata file to update")
+        return
+    
+    try:
+        metadata = np.load(metadata_path, allow_pickle=True).item()
+        expected_go_frame = metadata.get('expected_go_frame')
+        
+        if expected_go_frame is not None and expected_go_frame >= new_n_frames:
+            old_go_frame = expected_go_frame
+            metadata['expected_go_frame'] = new_n_frames - 1
+            np.save(metadata_path, metadata)
+            print(f"  ✓ Updated metadata: GO frame {old_go_frame} → {new_n_frames - 1}")
+        elif expected_go_frame is not None:
+            print(f"  ✓ Metadata GO frame {expected_go_frame} is within bounds")
+        else:
+            print(f"  ⚠ No expected_go_frame in metadata")
+            
+    except Exception as e:
+        print(f"  ✗ Could not update metadata: {e}")
+
+
 def process_recording(folder: Path) -> bool:
     """Extract and save trigger timestamps for a single recording."""
     raw_files = sorted(folder.glob("prophesee_events*.raw"))
@@ -66,7 +92,11 @@ def process_recording(folder: Path) -> bool:
         timestamps = extract_trigger_timestamps(raw_files[0])
         output_path = folder / "basler_frame_timestamps.npy"
         np.save(output_path, timestamps)  # overwrite if it already exists
-        print(f"  ✓ Saved to: {output_path.name}")
+        print(f"  ✓ Saved {len(timestamps)} timestamps to: {output_path.name}")
+        
+        # Update metadata if GO frame is out of bounds
+        update_metadata_go_frame(folder, len(timestamps))
+        
         return True
     except Exception as e:
         print(f"  ✗ Error: {e}")

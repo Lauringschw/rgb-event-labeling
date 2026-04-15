@@ -17,12 +17,19 @@ class GestureLabelingTool:
         self.trigger_times = np.load(trigger_path)
         self.n_frames = len(self.trigger_times)
         
+        print(f"\n{'='*60}")
+        print(f"INITIALIZING: {self.recording_folder.name}")
+        print(f"{'='*60}")
+        print(f"Loaded {self.n_frames} trigger timestamps from {trigger_path.name}")
+        
         # load basler files - SORT BY FRAME NUMBER, NOT ALPHABETICALLY
         self.basler_files = sorted(
             [f for f in os.listdir(self.recording_folder) 
              if f.startswith('Basler') and f.endswith('.raw')],
             key=lambda x: int(x.split('__')[1].split('.')[0])  # Extract frame number
         )[:self.n_frames]
+        
+        print(f"Found {len(self.basler_files)} Basler .raw files (truncated to {self.n_frames})")
         
         if len(self.basler_files) == 0:
             raise FileNotFoundError(f"No Basler .raw files found in {self.recording_folder}")
@@ -32,9 +39,12 @@ class GestureLabelingTool:
         self.t_initial_frame = None
         self._syncing_slider = False
         self.t_initial_marker = None
+        self.go_marker = None
         
         # Restore previously saved labels first; fall back to metadata only when needed
         self.load_saved_labels_or_metadata()
+        
+        print(f"After loading: GO={self.go_frame}, t_initial={self.t_initial_frame}")
         
         # setup plot
         self.fig, self.ax = plt.subplots(figsize=(12, 8))
@@ -46,16 +56,46 @@ class GestureLabelingTool:
         
         # Jump to GO frame if available
         if self.go_frame is not None:
+            print(f"Jumping to GO frame: {self.go_frame}")
             self.load_frame(self.go_frame)
         else:
+            print("No GO frame set, loading frame 0")
             self.load_frame(0)
 
-    def update_t_initial_marker(self):
+    def update_go_marker(self):
+        """Update the GO marker on the slider"""
+        print(f"update_go_marker called: go_frame={self.go_frame}")
+        
         if hasattr(self, 'slider'):
+            # Remove old marker if it exists
+            if self.go_marker is not None:
+                self.go_marker.remove()
+                self.go_marker = None
+                print("  Removed old GO marker")
+
+            # Draw new marker if GO is set
+            if self.go_frame is not None:
+                self.go_marker = self.slider.ax.axvline(
+                    self.go_frame,
+                    color='green',
+                    linestyle='--',
+                    linewidth=2,
+                    label='GO',
+                )
+                print(f"  Drew GO marker at frame {self.go_frame}")
+
+    def update_t_initial_marker(self):
+        """Update the t_initial marker on the slider"""
+        print(f"update_t_initial_marker called: t_initial_frame={self.t_initial_frame}")
+        
+        if hasattr(self, 'slider'):
+            # Remove old marker if it exists
             if self.t_initial_marker is not None:
                 self.t_initial_marker.remove()
                 self.t_initial_marker = None
+                print("  Removed old t_initial marker")
 
+            # Draw new marker if t_initial is set
             if self.t_initial_frame is not None:
                 self.t_initial_marker = self.slider.ax.axvline(
                     self.t_initial_frame,
@@ -64,9 +104,12 @@ class GestureLabelingTool:
                     linewidth=2,
                     label='t_initial',
                 )
+                print(f"  Drew t_initial marker at frame {self.t_initial_frame}")
     
     def load_saved_labels_or_metadata(self):
         labels_path = self.recording_folder / 'labels.npy'
+        print(f"\nChecking for saved labels at: {labels_path}")
+        
         if labels_path.exists():
             try:
                 labels = np.load(labels_path, allow_pickle=True).item()
@@ -79,11 +122,14 @@ class GestureLabelingTool:
             except Exception as e:
                 print(f"⚠ Could not load labels from {labels_path}: {e}")
 
+        print("No saved labels found, trying metadata...")
         self.load_go_from_metadata()
 
     def load_go_from_metadata(self):
         """Load GO frame from recording metadata"""
         metadata_path = self.recording_folder / 'recording_metadata.npy'
+        
+        print(f"Checking for metadata at: {metadata_path}")
         
         if not metadata_path.exists():
             print("⚠ No recording_metadata.npy found - GO frame not auto-detected")
@@ -126,6 +172,7 @@ class GestureLabelingTool:
         
         self.current_frame = frame_idx
         self.update_title()
+        self.update_go_marker()
         self.update_t_initial_marker()
 
         if hasattr(self, 'slider') and not self._syncing_slider and int(self.slider.val) != frame_idx:
@@ -173,6 +220,8 @@ class GestureLabelingTool:
                              valstep=1)
         self.slider.on_changed(self.on_slider_change)
         
+        print(f"Slider initialized with valinit={self.go_frame if self.go_frame is not None else 0}")
+        
         # buttons
         ax_go = plt.axes([0.1, 0.05, 0.12, 0.04])
         self.btn_go = Button(ax_go, 'Mark GO')
@@ -202,17 +251,18 @@ class GestureLabelingTool:
     def mark_go(self):
         self.go_frame = self.current_frame
         self.update_title()
-        print(f"GO marked at frame {self.go_frame} ({self.trigger_times[self.go_frame]/1e6:.3f}s)")
+        self.update_go_marker()
+        print(f"\n>>> GO marked at frame {self.go_frame} ({self.trigger_times[self.go_frame]/1e6:.3f}s)")
     
     def mark_t_initial(self):
         self.t_initial_frame = self.current_frame
         self.update_title()
         self.update_t_initial_marker()
-        print(f"t_initial marked at frame {self.t_initial_frame} ({self.trigger_times[self.t_initial_frame]/1e6:.3f}s)")
+        print(f"\n>>> t_initial marked at frame {self.t_initial_frame} ({self.trigger_times[self.t_initial_frame]/1e6:.3f}s)")
     
     def save_labels(self):
         if self.go_frame is None or self.t_initial_frame is None:
-            print("ERROR: must mark both GO and t_initial before saving")
+            print("\n!!! ERROR: must mark both GO and t_initial before saving")
             return False
         
         labels = {
@@ -226,7 +276,9 @@ class GestureLabelingTool:
         # save to file
         save_path = self.recording_folder / 'labels.npy'
         np.save(save_path, labels)
-        print(f"\nLabels saved to {save_path}")
+        print(f"\n{'='*60}")
+        print(f"LABELS SAVED to {save_path}")
+        print(f"{'='*60}")
         print(f"  GO: frame {labels['go_frame']} → {labels['go_time_us']} µs")
         print(f"  t_initial: frame {labels['t_initial_frame']} → {labels['t_initial_time_us']} µs")
         return True
@@ -234,18 +286,29 @@ class GestureLabelingTool:
     def next_recording(self):
         next_folder = self.get_next_recording()
         if next_folder is None:
+            print("\n" + "="*60)
             print("✓ No more recordings to label!")
+            print("="*60)
             return
         
-        print(f"\n→ Loading next recording: {next_folder}")
+        print(f"\n{'='*60}")
+        print(f"SWITCHING TO: {next_folder}")
+        print(f"{'='*60}")
         
         # CLEAR ALL SLIDER MARKERS before switching recordings
         if hasattr(self, 'slider'):
+            print("Clearing all slider markers...")
             for line in self.slider.ax.lines[:]:
                 line.remove()
+            print(f"  Removed {len(self.slider.ax.lines)} lines from slider")
         
         if self.t_initial_marker is not None:
             self.t_initial_marker = None
+            print("  Reset t_initial_marker to None")
+        
+        if self.go_marker is not None:
+            self.go_marker = None
+            print("  Reset go_marker to None")
         
         # Update state in-place instead of creating a new instance
         self.recording_folder = Path(next_folder)
@@ -253,9 +316,13 @@ class GestureLabelingTool:
         self.t_initial_frame = None
         self.current_frame = 0
         
+        print(f"Reset state: go_frame={self.go_frame}, t_initial_frame={self.t_initial_frame}")
+        
         trigger_path = self.recording_folder / 'basler_frame_timestamps.npy'
         self.trigger_times = np.load(trigger_path)
         self.n_frames = len(self.trigger_times)
+        
+        print(f"Loaded {self.n_frames} triggers from new recording")
         
         self.basler_files = sorted(
             [f for f in os.listdir(self.recording_folder)
@@ -263,19 +330,26 @@ class GestureLabelingTool:
             key=lambda x: int(x.split('__')[1].split('.')[0])
         )[:self.n_frames]
         
+        print(f"Found {len(self.basler_files)} Basler files")
+        
         self.load_saved_labels_or_metadata()
+        
+        print(f"After loading metadata: go_frame={self.go_frame}, t_initial_frame={self.t_initial_frame}")
         
         # Update slider range
         self.slider.valmax = self.n_frames - 1
         self.slider.ax.set_xlim(0, self.n_frames - 1)
         init_frame = self.go_frame if self.go_frame is not None else 0
-        self.update_t_initial_marker()
+        
+        print(f"Updated slider range to [0, {self.n_frames - 1}], init_frame={init_frame}")
         
         # Reset image display so imshow re-initializes
         self.img_display = None
         self.ax.cla()
         
+        print(f"Loading initial frame: {init_frame}")
         self.load_frame(init_frame)
+        print(f"{'='*60}\n")
 
     def get_next_recording(self):
         folder_name = self.recording_folder.name
@@ -313,5 +387,5 @@ class GestureLabelingTool:
 
 if __name__ == '__main__':
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
-    tool = GestureLabelingTool(base / "rock" / "r_1")
+    tool = GestureLabelingTool(base / "paper" / "p_1")
     tool.show()
