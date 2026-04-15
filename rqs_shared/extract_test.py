@@ -54,16 +54,13 @@ def process_recording(folder: Path) -> bool:
     """Extract and save trigger timestamps for a single recording."""
     raw_files = sorted(folder.glob("prophesee_events*.raw"))
     if not raw_files:
+        print("  ✗ No RAW file found")
         return False
-
-    output_path = folder / "basler_frame_timestamps.npy"
-    if output_path.exists():
-        print("  - Already processed, skipping")
-        return True
 
     try:
         timestamps = extract_trigger_timestamps(raw_files[0])
-        np.save(output_path, timestamps)
+        output_path = folder / "basler_frame_timestamps.npy"
+        np.save(output_path, timestamps)  # overwrite if it already exists
         print(f"  ✓ Saved to: {output_path.name}")
         return True
     except Exception as e:
@@ -74,46 +71,40 @@ def process_recording(folder: Path) -> bool:
 if __name__ == "__main__":
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
 
-    gesture = os.getenv("GESTURE", "").strip().lower()
+    gesture = os.getenv("GESTURE")
+    if gesture is None:
+        raise ValueError("GESTURE is not set in .env")
+
+    gesture = gesture.strip().lower()
     allowed_gestures = ["rock", "paper", "scissor", "other"]
 
-    if gesture:
-        if gesture not in allowed_gestures:
-            raise ValueError(
-                f"Invalid GESTURE='{gesture}'. Must be one of: {allowed_gestures}"
-            )
-        gestures = [gesture]
-    else:
-        gestures = allowed_gestures
+    if gesture not in allowed_gestures:
+        raise ValueError(
+            f"Invalid GESTURE='{gesture}'. Must be one of: {allowed_gestures}"
+        )
 
+    prefix = gesture[0]
     total_processed = 0
     total_failed = 0
 
-    for gesture in gestures:
-        prefix = gesture[0]
-        gesture_processed = 0
-        gesture_failed = 0
+    print(f"Processing only gesture: {gesture}")
 
-        i = 1
-        while True:
-            folder = base / gesture / f"{prefix}_{i}"
+    i = 1
+    while True:
+        folder = base / gesture / f"{prefix}_{i}"
 
-            if not folder.exists():
-                break
+        if not folder.exists():
+            break
 
-            print(f"\n{gesture}/{prefix}_{i}")
+        print(f"\n{gesture}/{prefix}_{i}")
 
-            if process_recording(folder):
-                total_processed += 1
-                gesture_processed += 1
-            else:
-                total_failed += 1
-                gesture_failed += 1
+        if process_recording(folder):
+            total_processed += 1
+        else:
+            total_failed += 1
 
-            i += 1
-
-        print(f"\n{gesture.upper()}: {gesture_processed} processed, {gesture_failed} failed")
+        i += 1
 
     print(f"\n{'='*50}")
-    print(f"TOTAL - Processed: {total_processed} recordings")
-    print(f"TOTAL - Failed: {total_failed} recordings")
+    print(f"{gesture.upper()} - Processed: {total_processed} recordings")
+    print(f"{gesture.upper()} - Failed: {total_failed} recordings")
