@@ -9,45 +9,42 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 
 def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
-    reader = RawReader(str(raw_path))
+    # IMPORTANT: match max_events to your chunk size, not the 10,000,000 default
+    reader = RawReader(str(raw_path), max_events=100000)
     trigger_times = set()
 
     try:
         while not reader.is_done():
-            reader.load_n_events(100000)
+            events = reader.load_n_events(100000)
 
             triggers = reader.get_ext_trigger_events()
-            if len(triggers) > 0:
+            if len(triggers):
                 for t in triggers:
                     if t["p"] == 1:
                         trigger_times.add(int(t["t"]))
                 reader.clear_ext_trigger_events()
 
+            del events
+            del triggers
+
         if not trigger_times:
             raise ValueError("No rising-edge external trigger events found in RAW file.")
 
-        timestamps = np.fromiter(sorted(trigger_times), dtype=np.int64)
+        arr = np.fromiter(sorted(trigger_times), dtype=np.int64)
 
-        duration_s = (timestamps[-1] - timestamps[0]) / 1e6
-        fps = (len(timestamps) - 1) / duration_s if duration_s > 0 else 0.0
+        duration_s = (arr[-1] - arr[0]) / 1e6
+        fps = (len(arr) - 1) / duration_s if duration_s > 0 else 0.0
 
-        print(f"  Total triggers: {len(timestamps)}")
+        print(f"  Total triggers: {len(arr)}")
         print(f"  Duration: {duration_s:.3f}s")
         print(f"  FPS: {fps:.2f}")
-
-        return timestamps
+        return arr
 
     finally:
         try:
             reader.clear_ext_trigger_events()
         except Exception:
             pass
-
-        if hasattr(reader, "close"):
-            try:
-                reader.close()
-            except Exception:
-                pass
 
         del reader
         gc.collect()
