@@ -266,8 +266,14 @@ class GestureLabelingTool:
         
         print(f"\n→ Loading next recording: {next_folder}")
 
-        # Clear marker artists from the previous recording's slider axis.
-        self.clear_slider_markers()
+        # Clear all slider lines to prevent stale marker artifacts across recordings.
+        if hasattr(self, 'slider'):
+            for line in self.slider.ax.lines[:]:
+                line.remove()
+
+        if self.t_initial_marker is not None:
+            self.t_initial_marker = None
+
         # Clear any lingering lines/artists from the main axis.
         for line in list(self.ax.lines):
             line.remove()
