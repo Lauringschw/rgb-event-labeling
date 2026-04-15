@@ -67,6 +67,8 @@ if __name__ == "__main__":
     
     for gesture in gestures:
         prefix = gesture[0]
+        gesture_processed = 0
+        gesture_failed = 0
         
         i = 1
         while True:
@@ -79,11 +81,15 @@ if __name__ == "__main__":
             
             if process_recording(folder):
                 total_processed += 1
+                gesture_processed += 1
             else:
                 total_failed += 1
+                gesture_failed += 1
             
             i += 1
+        
+        print(f"\n{gesture.upper()}: {gesture_processed} processed, {gesture_failed} failed")
     
     print(f"\n{'='*50}")
-    print(f"Processed: {total_processed} recordings")
-    print(f"Failed: {total_failed} recordings")
+    print(f"TOTAL - Processed: {total_processed} recordings")
+    print(f"TOTAL - Failed: {total_failed} recordings")
