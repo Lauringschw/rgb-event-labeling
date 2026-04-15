@@ -68,11 +68,12 @@ if __name__ == "__main__":
     for gesture in gestures:
         prefix = gesture[0]
         
-        for i in range(1, 100):
+        i = 1
+        while True:
             folder = base / gesture / f"{prefix}_{i}"
             
             if not folder.exists():
-                continue
+                break
             
             print(f"\n{gesture}/{prefix}_{i}")
             
@@ -80,6 +81,8 @@ if __name__ == "__main__":
                 total_processed += 1
             else:
                 total_failed += 1
+            
+            i += 1
     
     print(f"\n{'='*50}")
     print(f"Processed: {total_processed} recordings")
