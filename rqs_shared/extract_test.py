@@ -2,39 +2,23 @@ from pathlib import Path
 import numpy as np
 from metavision_core.event_io import RawReader
 from dotenv import load_dotenv
-from multiprocessing import Process, Queue
 import os
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
 
-def extract_trigger_timestamps(raw_path: Path, max_events: int = 1_000_000) -> np.ndarray:
-    reader = RawReader(str(raw_path), max_events=max_events)
-    trigger_times = set()
+def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
+    reader = RawReader(str(raw_path))
+    trigger_times = []
 
     try:
         while not reader.is_done():
-            reader.load_n_events(max_events)
+            reader.load_n_events(100000)
 
             triggers = reader.get_ext_trigger_events()
-            if len(triggers):
-                for t in triggers:
-                    if t["p"] == 1:
-                        trigger_times.add(int(t["t"]))
+            if len(triggers) > 0:
+                trigger_times.extend(int(t["t"]) for t in triggers if t["p"] == 1)
                 reader.clear_ext_trigger_events()
-
-        if not trigger_times:
-            raise ValueError("No rising-edge external trigger events found in RAW file.")
-
-        arr = np.fromiter(sorted(trigger_times), dtype=np.int64)
-
-        duration_s = (arr[-1] - arr[0]) / 1e6
-        fps = (len(arr) - 1) / duration_s if duration_s > 0 else 0.0
-
-        print(f"  Total triggers: {len(arr)}")
-        print(f"  Duration: {duration_s:.3f}s")
-        print(f"  FPS: {fps:.2f}")
-        return arr
 
     finally:
         try:
@@ -48,51 +32,52 @@ def extract_trigger_timestamps(raw_path: Path, max_events: int = 1_000_000) -> n
             except Exception:
                 pass
 
+        del reader
 
-def process_recording(folder: Path, max_events: int = 1_000_000) -> bool:
+    if not trigger_times:
+        raise ValueError("No rising-edge external trigger events found in RAW file.")
+
+    trigger_times = np.array(sorted(set(trigger_times)), dtype=np.int64)
+
+    duration_s = (trigger_times[-1] - trigger_times[0]) / 1e6
+    fps = (len(trigger_times) - 1) / duration_s if duration_s > 0 else 0.0
+
+    print(f"  Total triggers: {len(trigger_times)}")
+    print(f"  Duration: {duration_s:.3f}s")
+    print(f"  FPS: {fps:.2f}")
+
+    return trigger_times
+
+
+def process_recording(folder: Path) -> bool:
     raw_files = sorted(folder.glob("prophesee_events*.raw"))
     if not raw_files:
         return False
 
-    timestamps = extract_trigger_timestamps(raw_files[0], max_events=max_events)
     output_path = folder / "basler_frame_timestamps.npy"
-    np.save(output_path, timestamps)
-    print(f"  ✓ Saved to: {output_path.name}")
-    return True
+    if output_path.exists():
+        print("  - Already processed, skipping")
+        return True
 
-
-def worker(folder_str: str, max_events: int, q: Queue):
     try:
-        ok = process_recording(Path(folder_str), max_events=max_events)
-        q.put((ok, None))
+        timestamps = extract_trigger_timestamps(raw_files[0])
+        np.save(output_path, timestamps)
+        print(f"  ✓ Saved to: {output_path.name}")
+        return True
     except Exception as e:
-        q.put((False, str(e)))
-
-
-def process_recording_isolated(folder: Path, max_events: int = 1_000_000) -> bool:
-    q = Queue()
-    p = Process(target=worker, args=(str(folder), max_events, q))
-    p.start()
-    p.join()
-
-    if not q.empty():
-        ok, err = q.get()
-        if err:
-            print(f"  ✗ Error: {err}")
-        return ok
-
-    print("  ✗ Error: worker crashed without returning a result")
-    return False
+        print(f"  ✗ Error: {e}")
+        return False
 
 
 if __name__ == "__main__":
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
     gestures = ['rock', 'paper', 'scissor', 'other']
 
+    BATCH_SIZE = 100
+    processed_this_run = 0
+
     total_processed = 0
     total_failed = 0
-
-    MAX_EVENTS = 1_000_000
 
     for gesture in gestures:
         prefix = gesture[0]
@@ -106,14 +91,20 @@ if __name__ == "__main__":
             if not folder.exists():
                 break
 
+            if processed_this_run >= BATCH_SIZE:
+                print(f"\nReached batch limit of {BATCH_SIZE}. Restart the script to continue.")
+                raise SystemExit(0)
+
             print(f"\n{gesture}/{prefix}_{i}")
 
-            if process_recording_isolated(folder, max_events=MAX_EVENTS):
+            if process_recording(folder):
                 total_processed += 1
                 gesture_processed += 1
+                processed_this_run += 1
             else:
                 total_failed += 1
                 gesture_failed += 1
+                processed_this_run += 1
 
             i += 1
 
