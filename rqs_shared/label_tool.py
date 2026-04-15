@@ -64,6 +64,21 @@ class GestureLabelingTool:
                     linewidth=2,
                     label='t_initial',
                 )
+
+    def clear_slider_markers(self):
+        if not hasattr(self, 'slider'):
+            return
+
+        if self.t_initial_marker is not None:
+            self.t_initial_marker.remove()
+            self.t_initial_marker = None
+
+        # Keep the slider's own value indicator and remove any custom/leftover lines.
+        slider_value_line = getattr(self.slider, 'vline', None)
+        for line in list(self.slider.ax.lines):
+            if line is slider_value_line:
+                continue
+            line.remove()
     
     def load_saved_labels_or_metadata(self):
         labels_path = self.recording_folder / 'labels.npy'
@@ -238,6 +253,9 @@ class GestureLabelingTool:
             return
         
         print(f"\n→ Loading next recording: {next_folder}")
+
+        # Clear marker artists from the previous recording's slider axis.
+        self.clear_slider_markers()
         
         # Update state in-place instead of creating a new instance
         self.recording_folder = Path(next_folder)
@@ -305,5 +323,5 @@ class GestureLabelingTool:
 
 if __name__ == '__main__':
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
-    tool = GestureLabelingTool(base / "rock" / "r_1")
+    tool = GestureLabelingTool(base / "paper" / "p_1")
     tool.show()
