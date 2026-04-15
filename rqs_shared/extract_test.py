@@ -3,96 +3,78 @@ import numpy as np
 from metavision_core.event_io import RawReader
 from dotenv import load_dotenv
 import os
-import time
+import gc
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 
 def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
-    """Extract rising-edge external trigger timestamps from a RAW file."""
     reader = RawReader(str(raw_path))
-    trigger_times = []
-    last_saved_t = -1
-
-    # Tunables to keep CPU usage under control on slower machines.
-    chunk_size = max(1_000, int(os.getenv("RAW_CHUNK_SIZE", "10_000")))
-    loop_sleep_s = max(0.0, float(os.getenv("RAW_LOOP_SLEEP_S", "0.0005")))
-    report_every_chunks = max(0, int(os.getenv("RAW_REPORT_EVERY_CHUNKS", "500")))
-    chunks_processed = 0
+    trigger_times = set()
 
     try:
         while not reader.is_done():
-            reader.load_n_events(chunk_size)
-            chunks_processed += 1
+            reader.load_n_events(100000)
 
             triggers = reader.get_ext_trigger_events()
             if len(triggers) > 0:
-                # Keep only strictly new rising-edge timestamps. This prevents
-                # runaway memory usage if the SDK returns overlapping trigger windows.
-                for trig in triggers:
-                    if trig["p"] == 1 and trig["t"] > last_saved_t:
-                        t = int(trig["t"])
-                        trigger_times.append(t)
-                        last_saved_t = t
+                for t in triggers:
+                    if t["p"] == 1:
+                        trigger_times.add(int(t["t"]))
+                reader.clear_ext_trigger_events()
 
-            # Always clear trigger buffer each chunk to avoid internal accumulation.
-            reader.clear_ext_trigger_events()
+        if not trigger_times:
+            raise ValueError("No rising-edge external trigger events found in RAW file.")
 
-            if report_every_chunks and chunks_processed % report_every_chunks == 0:
-                print(
-                    f"\r      chunks={chunks_processed} triggers={len(trigger_times)}",
-                    end="",
-                    flush=True,
-                )
+        timestamps = np.fromiter(sorted(trigger_times), dtype=np.int64)
 
-            if loop_sleep_s > 0.0:
-                time.sleep(loop_sleep_s)
+        duration_s = (timestamps[-1] - timestamps[0]) / 1e6
+        fps = (len(timestamps) - 1) / duration_s if duration_s > 0 else 0.0
 
-        if report_every_chunks:
-            print()
+        print(f"  Total triggers: {len(timestamps)}")
+        print(f"  Duration: {duration_s:.3f}s")
+        print(f"  FPS: {fps:.2f}")
+
+        return timestamps
 
     finally:
-        reader.reset()
+        try:
+            reader.clear_ext_trigger_events()
+        except Exception:
+            pass
 
-    if not trigger_times:
-        raise ValueError("No rising-edge external trigger events found in RAW file.")
+        if hasattr(reader, "close"):
+            try:
+                reader.close()
+            except Exception:
+                pass
 
-    trigger_times = np.array(trigger_times, dtype=np.int64)
-
-    duration_s = (trigger_times[-1] - trigger_times[0]) / 1e6
-    fps = (len(trigger_times) - 1) / duration_s if duration_s > 0 else 0.0
-
-    print(f"  Total triggers: {len(trigger_times)}")
-    print(f"  Duration: {duration_s:.3f}s")
-    print(f"  FPS: {fps:.2f}")
-
-    return trigger_times
+        del reader
+        gc.collect()
 
 
 def process_recording(folder: Path) -> bool:
-    """Extract and save trigger timestamps for a single recording."""
     raw_files = sorted(folder.glob("prophesee_events*.raw"))
     if not raw_files:
         return False
 
     try:
-        print(f"    Processing {raw_files[0].name}...", end=" ", flush=True)
         timestamps = extract_trigger_timestamps(raw_files[0])
         output_path = folder / "basler_frame_timestamps.npy"
         np.save(output_path, timestamps)
-        print(f"✓ Saved {len(timestamps)} triggers")
+        print(f"  ✓ Saved to: {output_path.name}")
+        del timestamps
+        gc.collect()
         return True
-    except ValueError as e:
-        print(f"✗ {e}")
-        return False
     except Exception as e:
-        print(f"✗ Unexpected error: {type(e).__name__}: {e}")
+        print(f"  ✗ Error: {e}")
+        gc.collect()
         return False
 
 
 if __name__ == "__main__":
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
-    gestures = ["rock", "paper", "scissor", "other"]
+    gestures = ['rock', 'paper', 'scissor', 'other']
 
     total_processed = 0
     total_failed = 0
@@ -122,6 +104,6 @@ if __name__ == "__main__":
 
         print(f"\n{gesture.upper()}: {gesture_processed} processed, {gesture_failed} failed")
 
-    print(f"\n{'=' * 50}")
+    print(f"\n{'='*50}")
     print(f"TOTAL - Processed: {total_processed} recordings")
     print(f"TOTAL - Failed: {total_failed} recordings")
