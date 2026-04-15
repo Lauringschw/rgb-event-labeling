@@ -83,18 +83,29 @@ if __name__ == "__main__":
             f"Invalid GESTURE='{gesture}'. Must be one of: {allowed_gestures}"
         )
 
+    start_index = int(os.getenv("START_INDEX", "1"))
+    end_index = int(os.getenv("END_INDEX", "100"))
+
+    if start_index < 1:
+        raise ValueError("START_INDEX must be >= 1")
+    if end_index < start_index:
+        raise ValueError("END_INDEX must be >= START_INDEX")
+
     prefix = gesture[0]
     total_processed = 0
     total_failed = 0
 
     print(f"Processing only gesture: {gesture}")
+    print(f"Processing range: {start_index} to {end_index}")
 
-    i = 1
-    while True:
+    for i in range(start_index, end_index + 1):
         folder = base / gesture / f"{prefix}_{i}"
 
         if not folder.exists():
-            break
+            print(f"\n{gesture}/{prefix}_{i}")
+            print("  ✗ Folder does not exist")
+            total_failed += 1
+            continue
 
         print(f"\n{gesture}/{prefix}_{i}")
 
@@ -102,8 +113,6 @@ if __name__ == "__main__":
             total_processed += 1
         else:
             total_failed += 1
-
-        i += 1
 
     print(f"\n{'='*50}")
     print(f"{gesture.upper()} - Processed: {total_processed} recordings")
