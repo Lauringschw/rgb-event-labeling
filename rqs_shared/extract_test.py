@@ -12,6 +12,7 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
     """Extract rising-edge external trigger timestamps from a RAW file."""
     reader = RawReader(str(raw_path))
     trigger_times = []
+    last_saved_t = -1
 
     # Tunables to keep CPU usage under control on slower machines.
     chunk_size = max(1_000, int(os.getenv("RAW_CHUNK_SIZE", "10_000")))
@@ -26,8 +27,16 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
 
             triggers = reader.get_ext_trigger_events()
             if len(triggers) > 0:
-                trigger_times.extend(t["t"] for t in triggers if t["p"] == 1)
-                reader.clear_ext_trigger_events()
+                # Keep only strictly new rising-edge timestamps. This prevents
+                # runaway memory usage if the SDK returns overlapping trigger windows.
+                for trig in triggers:
+                    if trig["p"] == 1 and trig["t"] > last_saved_t:
+                        t = int(trig["t"])
+                        trigger_times.append(t)
+                        last_saved_t = t
+
+            # Always clear trigger buffer each chunk to avoid internal accumulation.
+            reader.clear_ext_trigger_events()
 
             if report_every_chunks and chunks_processed % report_every_chunks == 0:
                 print(
@@ -48,7 +57,7 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
     if not trigger_times:
         raise ValueError("No rising-edge external trigger events found in RAW file.")
 
-    trigger_times = np.unique(np.array(trigger_times, dtype=np.int64))
+    trigger_times = np.array(trigger_times, dtype=np.int64)
 
     duration_s = (trigger_times[-1] - trigger_times[0]) / 1e6
     fps = (len(trigger_times) - 1) / duration_s if duration_s > 0 else 0.0
