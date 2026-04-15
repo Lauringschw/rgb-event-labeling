@@ -11,7 +11,21 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 class GestureLabelingTool:
     def __init__(self, recording_folder):
         self.recording_folder = Path(recording_folder)
-        self.load_recording_data()
+        
+        # load trigger timestamps from recording folder
+        trigger_path = self.recording_folder / 'basler_frame_timestamps.npy'
+        self.trigger_times = np.load(trigger_path)
+        self.n_frames = len(self.trigger_times)
+        
+        # load basler files - SORT BY FRAME NUMBER, NOT ALPHABETICALLY
+        self.basler_files = sorted(
+            [f for f in os.listdir(self.recording_folder) 
+             if f.startswith('Basler') and f.endswith('.raw')],
+            key=lambda x: int(x.split('__')[1].split('.')[0])  # Extract frame number
+        )[:self.n_frames]
+        
+        if len(self.basler_files) == 0:
+            raise FileNotFoundError(f"No Basler .raw files found in {self.recording_folder}")
         
         self.current_frame = 0
         self.go_frame = None
@@ -36,32 +50,6 @@ class GestureLabelingTool:
         else:
             self.load_frame(0)
 
-    def load_recording_data(self):
-        # Load trigger timestamps from recording folder.
-        trigger_path = self.recording_folder / 'basler_frame_timestamps.npy'
-        self.trigger_times = np.load(trigger_path)
-
-        # Load Basler files sorted by frame index, not alphabetically.
-        self.basler_files = sorted(
-            [f for f in os.listdir(self.recording_folder)
-             if f.startswith('Basler') and f.endswith('.raw')],
-            key=lambda x: int(x.split('__')[1].split('.')[0])
-        )
-
-        if len(self.basler_files) == 0:
-            raise FileNotFoundError(f"No Basler .raw files found in {self.recording_folder}")
-
-        print(f"DEBUG: {len(self.trigger_times)} triggers, {len(self.basler_files)} Basler frames")
-
-        if len(self.trigger_times) != len(self.basler_files):
-            usable = min(len(self.trigger_times), len(self.basler_files))
-            print("⚠ WARNING: trigger/frame count mismatch!")
-            print(f"  Using first {usable} frames")
-            self.trigger_times = self.trigger_times[:usable]
-            self.basler_files = self.basler_files[:usable]
-
-        self.n_frames = len(self.trigger_times)
-
     def update_t_initial_marker(self):
         if hasattr(self, 'slider'):
             if self.t_initial_marker is not None:
@@ -76,21 +64,6 @@ class GestureLabelingTool:
                     linewidth=2,
                     label='t_initial',
                 )
-
-    def clear_slider_markers(self):
-        if not hasattr(self, 'slider'):
-            return
-
-        if self.t_initial_marker is not None:
-            self.t_initial_marker.remove()
-            self.t_initial_marker = None
-
-        # Keep the slider's own value indicator and remove any custom/leftover lines.
-        slider_value_line = getattr(self.slider, 'vline', None)
-        for line in list(self.slider.ax.lines):
-            if line is slider_value_line:
-                continue
-            line.remove()
     
     def load_saved_labels_or_metadata(self):
         labels_path = self.recording_folder / 'labels.npy'
@@ -265,27 +238,30 @@ class GestureLabelingTool:
             return
         
         print(f"\n→ Loading next recording: {next_folder}")
-
-        # Clear all slider lines to prevent stale marker artifacts across recordings.
+        
+        # CLEAR ALL SLIDER MARKERS before switching recordings
         if hasattr(self, 'slider'):
             for line in self.slider.ax.lines[:]:
                 line.remove()
-
+        
         if self.t_initial_marker is not None:
             self.t_initial_marker = None
-
-        # Clear any lingering lines/artists from the main axis.
-        for line in list(self.ax.lines):
-            line.remove()
-        for text in list(self.ax.texts):
-            text.remove()
         
         # Update state in-place instead of creating a new instance
         self.recording_folder = Path(next_folder)
         self.go_frame = None
         self.t_initial_frame = None
         self.current_frame = 0
-        self.load_recording_data()
+        
+        trigger_path = self.recording_folder / 'basler_frame_timestamps.npy'
+        self.trigger_times = np.load(trigger_path)
+        self.n_frames = len(self.trigger_times)
+        
+        self.basler_files = sorted(
+            [f for f in os.listdir(self.recording_folder)
+            if f.startswith('Basler') and f.endswith('.raw')],
+            key=lambda x: int(x.split('__')[1].split('.')[0])
+        )[:self.n_frames]
         
         self.load_saved_labels_or_metadata()
         
@@ -337,5 +313,5 @@ class GestureLabelingTool:
 
 if __name__ == '__main__':
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
-    tool = GestureLabelingTool(base / "paper" / "p_1")
+    tool = GestureLabelingTool(base / "rock" / "r_1")
     tool.show()
