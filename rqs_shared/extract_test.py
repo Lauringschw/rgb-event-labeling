@@ -13,42 +13,19 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
     reader = RawReader(str(raw_path))
     trigger_times = []
 
-    prev_trigger_count = 0
-    stalled_iterations = 0
-    max_stalled = 10
-
-    # smaller chunk = less CPU / memory pressure
-    chunk_size = 20_000
+    chunk_size = 50_000
 
     try:
         while not reader.is_done():
             reader.load_n_events(chunk_size)
 
             triggers = reader.get_ext_trigger_events()
-
             if len(triggers) > 0:
                 trigger_times.extend(t["t"] for t in triggers if t["p"] == 1)
                 reader.clear_ext_trigger_events()
-            else:
-                # no triggers found in this chunk
-                pass
 
-            current_trigger_count = len(trigger_times)
-
-            # only increment stall counter once per loop
-            if current_trigger_count == prev_trigger_count:
-                stalled_iterations += 1
-            else:
-                stalled_iterations = 0
-
-            prev_trigger_count = current_trigger_count
-
-            if stalled_iterations >= max_stalled:
-                print(f"  Warning: no new trigger events for {max_stalled} iterations, stopping.")
-                break
-
-            # tiny pause to keep system responsive
-            time.sleep(0.001)
+            # optional tiny sleep if your laptop struggles
+            # time.sleep(0.001)
 
     finally:
         reader.reset()
