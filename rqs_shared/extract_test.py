@@ -13,19 +13,34 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
     reader = RawReader(str(raw_path))
     trigger_times = []
 
-    chunk_size = 50_000
+    # Tunables to keep CPU usage under control on slower machines.
+    chunk_size = max(1_000, int(os.getenv("RAW_CHUNK_SIZE", "10_000")))
+    loop_sleep_s = max(0.0, float(os.getenv("RAW_LOOP_SLEEP_S", "0.0005")))
+    report_every_chunks = max(0, int(os.getenv("RAW_REPORT_EVERY_CHUNKS", "500")))
+    chunks_processed = 0
 
     try:
         while not reader.is_done():
             reader.load_n_events(chunk_size)
+            chunks_processed += 1
 
             triggers = reader.get_ext_trigger_events()
             if len(triggers) > 0:
                 trigger_times.extend(t["t"] for t in triggers if t["p"] == 1)
                 reader.clear_ext_trigger_events()
 
-            # optional tiny sleep if your laptop struggles
-            # time.sleep(0.001)
+            if report_every_chunks and chunks_processed % report_every_chunks == 0:
+                print(
+                    f"\r      chunks={chunks_processed} triggers={len(trigger_times)}",
+                    end="",
+                    flush=True,
+                )
+
+            if loop_sleep_s > 0.0:
+                time.sleep(loop_sleep_s)
+
+        if report_every_chunks:
+            print()
 
     finally:
         reader.reset()
