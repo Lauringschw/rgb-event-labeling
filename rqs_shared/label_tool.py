@@ -342,6 +342,10 @@ class GestureLabelingTool:
         init_frame = self.go_frame if self.go_frame is not None else 0
         
         print(f"Updated slider range to [0, {self.n_frames - 1}], init_frame={init_frame}")
+
+        # Redraw markers on the updated slider before the first frame render.
+        self.update_go_marker()
+        self.update_t_initial_marker()
         
         # Reset image display so imshow re-initializes
         self.img_display = None
