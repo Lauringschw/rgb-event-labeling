@@ -69,6 +69,6 @@ python record_dual_camera_gui.py
    2. Click Single Shot.
    3. Click Start Recording.
 
-## Setup image
+## Setup Recording
 
-![Recording setup](/images/recording.png)
+<img src="/images/recording.gif" alt="Recording setup" width="300">

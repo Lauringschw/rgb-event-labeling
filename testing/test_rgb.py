@@ -6,21 +6,27 @@ import os
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
-index = 1 # set this
-frame_num = 1 # set this
-base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
+def show_basler_frame(category: str, index: int, frame_num: int):
+    """Display a single Basler RGB frame from a recording."""
+    base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
+    prefix = {"rock": "r", "paper": "p", "scissor": "s"}[category]
+    
+    folder = base / category / f"{prefix}_{index}"
+    frame_path = folder / f"Basler_acA1920-155um__{frame_num}.raw"
+    
+    if not frame_path.exists():
+        raise FileNotFoundError(f"Frame not found: {frame_path}")
+    
+    # Load raw grayscale image --> 1200x1920 uint8
+    frame = np.fromfile(frame_path, dtype=np.uint8).reshape(1200, 1920)
+    
+    # Display
+    plt.figure(figsize=(12, 8))
+    plt.imshow(frame, cmap='gray')
+    plt.title(f'{category}/{prefix}_{index} | Frame {frame_num}')
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()
 
-category = "paper"   # "rock" or "paper" or "scissor"
-prefix = {"rock": "r", "paper": "p", "scissor": "s"}[category]
-
-frame_pattern = base / f"{category}/{prefix}_{index}" / f"Basler_acA1920-155um__{frame_num}.raw"
-matches = sorted(frame_pattern.parent.glob(frame_pattern.name))
-if not matches:
-	raise FileNotFoundError(f"No frame files matched: {frame_pattern}")
-
-frame = np.fromfile(matches[0], dtype=np.uint8)
-frame = frame.reshape(1200, 1920)
-
-plt.imshow(frame, cmap='gray')
-plt.title(f'basler frame {frame_num:04d}')
-plt.show()
+if __name__ == "__main__":
+    show_basler_frame(category="paper", index=1, frame_num=1)
