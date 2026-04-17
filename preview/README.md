@@ -10,10 +10,12 @@ Generates visual previews of extracted samples for RQ1, RQ2, and RQ3 and saves P
 
 What it does:
 
-- Selects random sample files from gesture recordings.
+- Loads extracted sample files from gesture recording folders.
+- Selects a reproducible subset of samples, balanced per gesture where possible.
 - Visualizes each sample component as a heatmap.
-- Adds simple per-image statistics (active pixel ratio, value range, mean).
-- Saves figures into a per-RQ preview output folder.
+- Adds simple per-image statistics.
+- Saves figures into a per-RQ preview folder.
+- Optionally shows the figures unless `--save-only` is used.
 
 Example usage:
 
@@ -63,12 +65,12 @@ python3 preview/read_results.py
 
 RQ1 preview placeholder:
 
-![RQ1 preview](../images/preview_rq1_placeholder.png)
+![RQ1 preview](/images/preview_rq1.png)
 
-RQ2 preview placeholder:
+RQ2 preview:
 
-![RQ2 preview](../images/preview_rq2_placeholder.png)
+![RQ2 preview](/images/preview_rq2.png)
 
-RQ3 preview placeholder:
+RQ3 preview:
 
-![RQ3 preview](../images/preview_rq3_placeholder.png)
+![RQ3 preview](/images/preview_rq3.png)
