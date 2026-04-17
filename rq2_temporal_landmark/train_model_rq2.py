@@ -17,33 +17,43 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'rqs_shared'))
 
 from dataset_loader import GestureDataset
 
-class GestureCNN(nn.Module):
-    """Simpler CNN for small dataset"""
-    def __init__(self):
-        super(GestureCNN, self).__init__()
+# ===== Simple CNN (same as RQ1) =====
+class SimpleCNN(nn.Module):
+    """Lightweight 3-layer CNN for 1200 samples"""
+    def __init__(self, num_classes=3):
+        super(SimpleCNN, self).__init__()
         
-        self.conv_layers = nn.Sequential(
-            # input: 1 x 720 x 1280
-            nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2),  # -> 16 x 360 x 640
-            nn.ReLU(),
-            nn.MaxPool2d(2),  # -> 16 x 180 x 320
+        self.features = nn.Sequential(
+            # Layer 1: input 1x720x1280 -> 32x360x640
+            nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # -> 32x180x320
             
-            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),  # -> 32 x 90 x 160
-            nn.ReLU(),
-            nn.MaxPool2d(2),  # -> 32 x 45 x 80
+            # Layer 2: 32x180x320 -> 64x90x160
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # -> 64x45x80
+            
+            # Layer 3: 64x45x80 -> 128x23x40
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # -> 128x11x20
         )
         
-        self.fc_layers = nn.Sequential(
+        self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(32 * 45 * 80, 64),
-            nn.ReLU(),
-            nn.Dropout(0.7),
-            nn.Linear(64, 3)
+            nn.Linear(128 * 11 * 20, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            nn.Linear(256, num_classes)
         )
     
     def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
+        x = self.features(x)
+        x = self.classifier(x)
         return x
 
 def train_epoch(model, loader, criterion, optimizer, device):
@@ -114,9 +124,16 @@ def train_landmark_model(landmark, split, epochs=50, batch_size=16, lr=0.001):
     test_loader = DataLoader(test_dataset, batch_size=batch_size)
     
     # model, loss, optimizer
-    model = GestureCNN().to(device)
+    model = SimpleCNN(num_classes=3).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    
+    # learning rate scheduler + early stopping (matching RQ1)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='max', factor=0.5, patience=5
+    )
+    patience = 15
+    patience_counter = 0
     
     # training loop
     best_val_acc = 0
@@ -127,23 +144,35 @@ def train_landmark_model(landmark, split, epochs=50, batch_size=16, lr=0.001):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         val_acc, _, _ = evaluate(model, val_loader, device)
         
+        # learning rate scheduling
+        scheduler.step(val_acc)
+        
+        # track best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_model_state = model.state_dict().copy()
+            patience_counter = 0
+        else:
+            patience_counter += 1
         
         if (epoch + 1) % 10 == 0:
             print(f'Epoch {epoch+1}/{epochs}: train_loss={train_loss:.4f}, train_acc={train_acc:.2f}%, val_acc={val_acc*100:.2f}%')
+        
+        # early stopping
+        if patience_counter >= patience:
+            print(f'Early stopping at epoch {epoch+1} (no improvement for {patience} epochs)')
+            break
     
     # load best model and evaluate on test set
     model.load_state_dict(best_model_state)
     test_acc, test_preds, test_labels = evaluate(model, test_loader, device)
     
-    # latency calculation (relative to t_initial)
+    # latency calculation (relative to t_initial) - updated for new offsets
     latency_map = {
         't_initial': 0,
-        't_early': 50,
-        't_mid': 100,
-        't_late': 200
+        't_early': 40,
+        't_mid': 80,
+        't_late': 120
     }
     latency = latency_map[landmark]
     

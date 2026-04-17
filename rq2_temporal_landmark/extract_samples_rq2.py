@@ -9,23 +9,22 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 def extract_event_samples_rq2(recording_folder):
     """
-    RQ2: Extract samples at different temporal landmarks (t_initial, t_early, t_mid, t_late)
-    using fixed 50ms window length.
+    RQ2: Extract samples at different temporal landmarks using 150ms window (optimal from RQ1)
+    Testing: t_initial (+0ms), t_early (+40ms), t_mid (+80ms), t_late (+120ms)
     """
     # load labels
     labels = np.load(f'{recording_folder}/labels.npy', allow_pickle=True).item()
     t_initial = labels['t_initial_time_us']
     
-    # RQ2: test four temporal landmarks
-    landmarks = {
-        't_initial': t_initial,
-        't_early': t_initial + 50_000,
-        't_mid': t_initial + 100_000,
-        't_late': t_initial + 200_000
-    }
+    # RQ2: test four temporal landmarks with 150ms window (RQ1 optimal)
+    window_us = 150_000  # 150ms
     
-    # RQ2: fixed window length
-    window_us = 50_000  # 50ms
+    landmarks = {
+        't_initial': t_initial,           # [0ms, 150ms]
+        't_early': t_initial + 40_000,    # [40ms, 190ms]
+        't_mid': t_initial + 80_000,      # [80ms, 230ms]
+        't_late': t_initial + 120_000     # [120ms, 270ms]
+    }
     
     # find the .raw event file
     event_files = glob.glob(f'{recording_folder}/prophesee_events.raw')
@@ -59,12 +58,24 @@ def extract_event_samples_rq2(recording_folder):
     return samples
 
 def events_to_frame(events, height, width):
-    """2D event count histogram"""
+    """2D event count histogram with normalization (matching RQ1 methodology)"""
     frame = np.zeros((height, width), dtype=np.float32)
     
+    # accumulate events (only positive/ON events as per paper)
     for ev in events:
         x, y, p = ev['x'], ev['y'], ev['p']
-        frame[y, x] += 1 if p == 1 else -1
+        if p == 1:  # only count ON events
+            frame[y, x] += 1
+    
+    # clip maximum events per pixel to 200 (as per paper)
+    frame = np.clip(frame, 0, 200)
+    
+    # 3-sigma normalization to [0, 1] range
+    mean = frame.mean()
+    std = frame.std()
+    if std > 0:
+        frame = (frame - mean) / (3 * std + 1e-8)
+        frame = np.clip(frame, 0, 1)
     
     return frame
 
