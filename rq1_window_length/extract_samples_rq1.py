@@ -25,7 +25,7 @@ def extract_event_samples_rq1(recording_folder):
     landmark = t_initial
     
     # RQ1: test three window lengths
-    windows = [20_000, 30_000, 50_000]  # µs
+    windows = [100_000, 150_000, 200_000]  # µs
     
     # find the .raw event file
     event_files = glob.glob(f'{recording_folder}/prophesee_events.raw')

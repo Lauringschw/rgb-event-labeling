@@ -57,26 +57,29 @@ class BasicBlock(nn.Module):
         
         return out
 
-class ResNet18(nn.Module):
-    """Lightweight ResNet-18 for gesture classification"""
+class ResNet10(nn.Module):
+    """Lightweight ResNet-10 for small dataset (1200 samples)
+    Much smaller than ResNet-18 to prevent overfitting
+    """
     def __init__(self, num_classes=3):
-        super(ResNet18, self).__init__()
+        super(ResNet10, self).__init__()
         
-        # initial conv layer
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
+        # initial conv layer - smaller filters
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(32)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         
-        # residual layers (2 blocks per layer for ResNet-18)
-        self.layer1 = self._make_layer(64, 64, 2, stride=1)
-        self.layer2 = self._make_layer(64, 128, 2, stride=2)
-        self.layer3 = self._make_layer(128, 256, 2, stride=2)
-        self.layer4 = self._make_layer(256, 512, 2, stride=2)
+        # residual layers (1 block per layer instead of 2)
+        self.layer1 = self._make_layer(32, 32, 1, stride=1)
+        self.layer2 = self._make_layer(32, 64, 1, stride=2)
+        self.layer3 = self._make_layer(64, 128, 1, stride=2)
+        self.layer4 = self._make_layer(128, 256, 1, stride=2)
         
-        # classifier
+        # classifier with dropout
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512, num_classes)
+        self.dropout = nn.Dropout(0.5)
+        self.fc = nn.Linear(256, num_classes)
     
     def _make_layer(self, in_channels, out_channels, num_blocks, stride):
         layers = []
@@ -98,6 +101,7 @@ class ResNet18(nn.Module):
         
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
+        x = self.dropout(x)
         x = self.fc(x)
         
         return x
@@ -170,13 +174,13 @@ def train_window_model(window, split, epochs=50, batch_size=16, lr=0.001):
     test_loader = DataLoader(test_dataset, batch_size=batch_size)
     
     # model, loss, optimizer
-    model = ResNet18(num_classes=3).to(device)
+    model = ResNet10(num_classes=3).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
     # learning rate scheduler
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=5, verbose=True
+        optimizer, mode='max', factor=0.5, patience=5
     )
     
     # early stopping
@@ -244,7 +248,7 @@ if __name__ == '__main__':
     results = {}
     
     # train model for each window length
-    for window in ['20ms', '30ms', '50ms']:
+    for window in ['100ms', '150ms', '200ms']:
         split = loader.get_rq1_split(rq1_data, window)
         result = train_window_model(window, split, epochs=50, batch_size=16)
         results[window] = result
@@ -258,7 +262,7 @@ if __name__ == '__main__':
     print('\n' + '='*60)
     print('RQ1 RESULTS SUMMARY: Window Length Comparison')
     print('='*60)
-    for window in ['20ms', '30ms', '50ms']:
+    for window in ['100ms', '150ms', '200ms']:
         print(f'{window:6s}: test_acc={results[window]["test_accuracy"]*100:.2f}%')
     
     # save results

@@ -21,9 +21,9 @@ class GestureDataset:
     def load_rq1_samples(self):
         """Load RQ1 samples: t_initial with different window lengths"""
         dataset = {
-            '20ms': {'data': [], 'labels': []},
-            '30ms': {'data': [], 'labels': []},
-            '50ms': {'data': [], 'labels': []}
+            '100ms': {'data': [], 'labels': []},
+            '150ms': {'data': [], 'labels': []},
+            '200ms': {'data': [], 'labels': []}
         }
         
         missing_count = 0
@@ -50,7 +50,7 @@ class GestureDataset:
                 samples = np.load(sample_path, allow_pickle=True).item()
                 label = self.gesture_to_label[gesture]
                 
-                for window in ['20ms', '30ms', '50ms']:
+                for window in ['100ms', '150ms', '200ms']:
                     dataset[window]['data'].append(samples[window])
                     dataset[window]['labels'].append(label)
         
