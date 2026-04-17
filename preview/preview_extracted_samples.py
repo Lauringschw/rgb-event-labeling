@@ -1,12 +1,15 @@
 import argparse
 import random
 from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 from dotenv import load_dotenv
 import os
 
+
 load_dotenv(Path(__file__).parent.parent / ".env")
+
 
 GESTURES = ["rock", "paper", "scissor"]
 RQ_TO_FILE = {
@@ -14,6 +17,7 @@ RQ_TO_FILE = {
 	"rq2": "event_samples_rq2.npy",
 	"rq3": "event_samples_rq3.npy",
 }
+
 
 def parse_args():
 	parser = argparse.ArgumentParser(
@@ -96,7 +100,7 @@ def draw_array(ax, arr, title):
 		cmap = 'hot'
 		vmin, vmax = 0, 1
 	elif arr_min < 0:
-		# Signed data
+		# Signed data (old format with +1/-1)
 		vmax = max(abs(arr_min), abs(arr_max))
 		if vmax == 0:
 			vmax = 1.0
@@ -170,9 +174,18 @@ def preview_rq(base_dir, rq, num_samples, save_only, rng, per_gesture=None):
 			if gesture_files:
 				n = min(per_gesture, len(gesture_files))
 				chosen.extend(rng.sample(gesture_files, k=n))
+			else:
+				print(f"  Warning: No samples found for {gesture}")
 	else:
-		n = min(num_samples, len(sample_files))
-		chosen = rng.sample(sample_files, k=n)
+		samples_per_gesture = max(1, num_samples // len(GESTURES))
+		chosen = []
+		for gesture in GESTURES:
+			gesture_files = [(g, r, f) for g, r, f in sample_files if g == gesture]
+			if gesture_files:
+				n = min(samples_per_gesture, len(gesture_files))
+				chosen.extend(rng.sample(gesture_files, k=n))
+			else:
+				print(f"  Warning: No samples found for {gesture}")
 	
 	out_dir = get_preview_dir(rq)
 
