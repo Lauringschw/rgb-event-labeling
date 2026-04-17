@@ -60,12 +60,24 @@ def extract_event_samples_rq1(recording_folder):
     return samples
 
 def events_to_frame(events, height, width):
-    """2D event count histogram"""
+    """2D event count histogram with normalization (following paper_13 methodology)"""
     frame = np.zeros((height, width), dtype=np.float32)
     
+    # accumulate events (only positive/ON events as per paper)
     for ev in events:
         x, y, p = ev['x'], ev['y'], ev['p']
-        frame[y, x] += 1 if p == 1 else -1
+        if p == 1:  # only count ON events
+            frame[y, x] += 1
+    
+    # clip maximum events per pixel to 200 (as per paper)
+    frame = np.clip(frame, 0, 200)
+    
+    # 3-sigma normalization to [0, 1] range
+    mean = frame.mean()
+    std = frame.std()
+    if std > 0:
+        frame = (frame - mean) / (3 * std + 1e-8)
+        frame = np.clip(frame, 0, 1)
     
     return frame
 

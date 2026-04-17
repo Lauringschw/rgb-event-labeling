@@ -16,67 +16,91 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'rqs_shared'))
 
 from dataset_loader import GestureDataset
 
-class GestureCNN(nn.Module):
-    """Simpler CNN for small dataset"""
-    def __init__(self):
-        super(GestureCNN, self).__init__()
+# ===== ResNet Implementation =====
+class BasicBlock(nn.Module):
+    """Basic residual block for ResNet"""
+    expansion = 1
+    
+    def __init__(self, in_channels, out_channels, stride=1):
+        super(BasicBlock, self).__init__()
         
-        self.conv_layers = nn.Sequential(
-            # input: 1 x 720 x 1280
-            nn.Conv2d(1, 16, kernel_size=5, stride=2, padding=2),  # -> 16 x 360 x 640
-            nn.ReLU(),
-            nn.MaxPool2d(2),  # -> 16 x 180 x 320
-            
-            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),  # -> 32 x 90 x 160
-            nn.ReLU(),
-            nn.MaxPool2d(2),  # -> 32 x 45 x 80
-        )
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, 
+                               stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
         
-        self.fc_layers = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(32 * 45 * 80, 64),  # Much smaller
-            nn.ReLU(),
-            nn.Dropout(0.7),  # Higher dropout
-            nn.Linear(64, 3)
-        )
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3,
+                               stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        
+        # shortcut connection
+        self.shortcut = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1,
+                         stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels)
+            )
     
     def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
-        return x
+        residual = x
+        
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        
+        out = self.conv2(out)
+        out = self.bn2(out)
+        
+        out += self.shortcut(residual)
+        out = self.relu(out)
+        
+        return out
 
-# class GestureCNN(nn.Module):
-#     """Simple CNN for gesture classification from event frames"""
-#     def __init__(self):
-#         super(GestureCNN, self).__init__()
+class ResNet18(nn.Module):
+    """Lightweight ResNet-18 for gesture classification"""
+    def __init__(self, num_classes=3):
+        super(ResNet18, self).__init__()
         
-#         self.conv_layers = nn.Sequential(
-#             # input: 1 x 720 x 1280
-#             nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2),  # -> 32 x 360 x 640
-#             nn.ReLU(),
-#             nn.MaxPool2d(2),  # -> 32 x 180 x 320
-            
-#             nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # -> 64 x 90 x 160
-#             nn.ReLU(),
-#             nn.MaxPool2d(2),  # -> 64 x 45 x 80
-            
-#             nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # -> 128 x 23 x 40
-#             nn.ReLU(),
-#             nn.MaxPool2d(2),  # -> 128 x 11 x 20
-#         )
+        # initial conv layer
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         
-#         self.fc_layers = nn.Sequential(
-#             nn.Flatten(),
-#             nn.Linear(128 * 11 * 20, 256),
-#             nn.ReLU(),
-#             nn.Dropout(0.5),
-#             nn.Linear(256, 3)  # 3 classes: rock, paper, scissor
-#         )
+        # residual layers (2 blocks per layer for ResNet-18)
+        self.layer1 = self._make_layer(64, 64, 2, stride=1)
+        self.layer2 = self._make_layer(64, 128, 2, stride=2)
+        self.layer3 = self._make_layer(128, 256, 2, stride=2)
+        self.layer4 = self._make_layer(256, 512, 2, stride=2)
+        
+        # classifier
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(512, num_classes)
     
-#     def forward(self, x):
-#         x = self.conv_layers(x)
-#         x = self.fc_layers(x)
-#         return x
+    def _make_layer(self, in_channels, out_channels, num_blocks, stride):
+        layers = []
+        layers.append(BasicBlock(in_channels, out_channels, stride))
+        for _ in range(1, num_blocks):
+            layers.append(BasicBlock(out_channels, out_channels, stride=1))
+        return nn.Sequential(*layers)
+    
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.fc(x)
+        
+        return x
 
 def train_epoch(model, loader, criterion, optimizer, device):
     model.train()
@@ -146,11 +170,18 @@ def train_window_model(window, split, epochs=50, batch_size=16, lr=0.001):
     test_loader = DataLoader(test_dataset, batch_size=batch_size)
     
     # model, loss, optimizer
-    model = GestureCNN().to(device)
+    model = ResNet18(num_classes=3).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
-    # training loop
+    # learning rate scheduler
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='max', factor=0.5, patience=5, verbose=True
+    )
+    
+    # early stopping
+    patience = 15
+    patience_counter = 0
     best_val_acc = 0
     best_model_state = None
     
@@ -159,12 +190,24 @@ def train_window_model(window, split, epochs=50, batch_size=16, lr=0.001):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         val_acc, _, _ = evaluate(model, val_loader, device)
         
+        # learning rate scheduling
+        scheduler.step(val_acc)
+        
+        # track best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_model_state = model.state_dict().copy()
+            patience_counter = 0
+        else:
+            patience_counter += 1
         
         if (epoch + 1) % 10 == 0:
             print(f'Epoch {epoch+1}/{epochs}: train_loss={train_loss:.4f}, train_acc={train_acc:.2f}%, val_acc={val_acc*100:.2f}%')
+        
+        # early stopping
+        if patience_counter >= patience:
+            print(f'Early stopping at epoch {epoch+1} (no improvement for {patience} epochs)')
+            break
     
     # load best model and evaluate on test set
     model.load_state_dict(best_model_state)
