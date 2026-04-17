@@ -98,7 +98,12 @@ def evaluate(model, loader, device):
 def train_landmark_model(landmark, split, epochs=50, batch_size=16, lr=0.001):
     """Train model for specific temporal landmark"""
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if torch.backends.mps.is_available():
+        device = torch.device('mps')
+    elif torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
     print(f'\nTraining on {device}')
     
     # prepare data

@@ -17,69 +17,80 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'rqs_shared'))
 
 from dataset_loader import GestureDataset
 
-class GestureCNN2D(nn.Module):
-    """2D CNN for histogram and time_surface (720 x 1280 inputs)"""
-    def __init__(self):
-        super(GestureCNN2D, self).__init__()
+# ===== Simple CNN for 2D representations (same as RQ1/RQ2) =====
+class SimpleCNN(nn.Module):
+    """Lightweight 3-layer CNN for 1200 samples"""
+    def __init__(self, num_classes=3):
+        super(SimpleCNN, self).__init__()
         
-        self.conv_layers = nn.Sequential(
+        self.features = nn.Sequential(
+            # Layer 1: input 1x720x1280 -> 32x360x640
             nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # -> 32x180x320
             
+            # Layer 2: 32x180x320 -> 64x90x160
             nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # -> 64x45x80
             
+            # Layer 3: 64x45x80 -> 128x23x40
             nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2),  # -> 128x11x20
         )
         
-        self.fc_layers = nn.Sequential(
+        self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Linear(128 * 11 * 20, 256),
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(256, 3)
+            nn.Linear(256, num_classes)
         )
     
     def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
+        x = self.features(x)
+        x = self.classifier(x)
         return x
 
-class GestureCNN3D(nn.Module):
+# ===== 3D CNN for voxel grid =====
+class VoxelCNN(nn.Module):
     """3D CNN for voxel_grid (5 x 720 x 1280 inputs)"""
-    def __init__(self):
-        super(GestureCNN3D, self).__init__()
+    def __init__(self, num_classes=3):
+        super(VoxelCNN, self).__init__()
         
-        self.conv_layers = nn.Sequential(
+        self.features = nn.Sequential(
             # input: 1 x 5 x 720 x 1280
             nn.Conv3d(1, 32, kernel_size=(3, 5, 5), stride=(1, 2, 2), padding=(1, 2, 2)),
-            nn.ReLU(),
+            nn.BatchNorm3d(32),
+            nn.ReLU(inplace=True),
             nn.MaxPool3d((1, 2, 2)),  # -> 32 x 5 x 180 x 320
             
             nn.Conv3d(32, 64, kernel_size=(3, 3, 3), stride=(1, 2, 2), padding=(1, 1, 1)),
-            nn.ReLU(),
+            nn.BatchNorm3d(64),
+            nn.ReLU(inplace=True),
             nn.MaxPool3d((1, 2, 2)),  # -> 64 x 5 x 45 x 80
             
             nn.Conv3d(64, 128, kernel_size=(3, 3, 3), stride=(1, 2, 2), padding=(1, 1, 1)),
-            nn.ReLU(),
+            nn.BatchNorm3d(128),
+            nn.ReLU(inplace=True),
             nn.MaxPool3d((2, 2, 2)),  # -> 128 x 2 x 11 x 20
         )
         
-        self.fc_layers = nn.Sequential(
+        self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Linear(128 * 2 * 11 * 20, 256),
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(256, 3)
+            nn.Linear(256, num_classes)
         )
     
     def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
+        x = self.features(x)
+        x = self.classifier(x)
         return x
 
 def train_epoch(model, loader, criterion, optimizer, device):
@@ -124,7 +135,13 @@ def evaluate(model, loader, device):
 def train_representation_model(representation, split, epochs=50, batch_size=16, lr=0.001):
     """Train model for specific event representation"""
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device selection (MPS > CUDA > CPU)
+    if torch.backends.mps.is_available():
+        device = torch.device('mps')
+    elif torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
     print(f'\nTraining on {device}')
     
     # prepare data based on representation type
@@ -133,13 +150,13 @@ def train_representation_model(representation, split, epochs=50, batch_size=16, 
         X_train = split['X_train'][:, np.newaxis, :, :, :]
         X_val = split['X_val'][:, np.newaxis, :, :, :]
         X_test = split['X_test'][:, np.newaxis, :, :, :]
-        model = GestureCNN3D().to(device)
+        model = VoxelCNN(num_classes=3).to(device)
     else:
         # 2D input: add channel dim -> (N, 1, 720, 1280)
         X_train = split['X_train'][:, np.newaxis, :, :]
         X_val = split['X_val'][:, np.newaxis, :, :]
         X_test = split['X_test'][:, np.newaxis, :, :]
-        model = GestureCNN2D().to(device)
+        model = SimpleCNN(num_classes=3).to(device)
     
     train_dataset = TensorDataset(
         torch.FloatTensor(X_train),
@@ -162,6 +179,13 @@ def train_representation_model(representation, split, epochs=50, batch_size=16, 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
+    # learning rate scheduler + early stopping (matching RQ1/RQ2)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='max', factor=0.5, patience=5
+    )
+    patience = 15
+    patience_counter = 0
+    
     # training loop
     best_val_acc = 0
     best_model_state = None
@@ -171,12 +195,24 @@ def train_representation_model(representation, split, epochs=50, batch_size=16, 
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         val_acc, _, _ = evaluate(model, val_loader, device)
         
+        # learning rate scheduling
+        scheduler.step(val_acc)
+        
+        # track best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_model_state = model.state_dict().copy()
+            patience_counter = 0
+        else:
+            patience_counter += 1
         
         if (epoch + 1) % 10 == 0:
-            print(f'Epoch {epoch+1}/{epochs}: train_loss={train_loss:.4f}, train_acc={train_acc:.2f}%, val_acc={val_acc:.2f}%')
+            print(f'Epoch {epoch+1}/{epochs}: train_loss={train_loss:.4f}, train_acc={train_acc:.2f}%, val_acc={val_acc*100:.2f}%')
+        
+        # early stopping
+        if patience_counter >= patience:
+            print(f'Early stopping at epoch {epoch+1} (no improvement for {patience} epochs)')
+            break
     
     # load best model and evaluate on test set
     model.load_state_dict(best_model_state)
