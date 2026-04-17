@@ -1,3 +1,7 @@
+"""
+Test different window lengths and offsets to find optimal parameters
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
@@ -6,7 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-load_dotenv(Path(__file__).parent / '.env')
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 def extract_window_variations(recording_folder):
     """
@@ -183,10 +187,13 @@ def plot_configuration_heatmap(summary, metric='event_counts'):
 
 if __name__ == '__main__':
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
+    output_base = Path(os.getenv("EXPLORATION_DIR"))
     
     print("="*60)
     print("WINDOW CONFIGURATION EXPLORATION")
     print("="*60)
+    print(f"Input: {base}")
+    print(f"Output: {output_base}")
     
     all_results = {}
     
@@ -207,7 +214,7 @@ if __name__ == '__main__':
                 
                 # plot individual grid
                 fig = plot_window_grid(results, folder.name, gesture)
-                output_path = Path('exploratory_timing_plots') / 'windows' / f'{gesture}_{folder.name}.png'
+                output_path = output_base / 'windows' / f'{gesture}_{folder.name}.png'
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 fig.savefig(output_path, dpi=150, bbox_inches='tight')
                 plt.close(fig)
@@ -219,15 +226,15 @@ if __name__ == '__main__':
     summary = summarize_configurations(all_results)
     
     fig1 = plot_configuration_heatmap(summary, metric='event_counts')
-    fig1.savefig('exploratory_timing_plots/summary_event_counts.png', dpi=150, bbox_inches='tight')
+    fig1.savefig(output_base / 'summary_event_counts.png', dpi=150, bbox_inches='tight')
     plt.close(fig1)
     print("  ✓ Event counts heatmap")
     
     fig2 = plot_configuration_heatmap(summary, metric='active_pixels')
-    fig2.savefig('exploratory_timing_plots/summary_active_pixels.png', dpi=150, bbox_inches='tight')
+    fig2.savefig(output_base / 'summary_active_pixels.png', dpi=150, bbox_inches='tight')
     plt.close(fig2)
     print("  ✓ Active pixels heatmap")
     
     print("\n" + "="*60)
-    print("Window exploration complete. Check exploratory_timing_plots/ folder")
+    print(f"Window exploration complete. Check {output_base}/ folder")
     print("="*60)

@@ -1,3 +1,7 @@
+"""
+Exploratory analysis: visualize event distribution over time to find optimal t_initial offset and window length
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
@@ -6,7 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-load_dotenv(Path(__file__).parent / '.env')
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 def analyze_recording_timing(recording_folder, window_size_ms=10):
     """
@@ -20,7 +24,7 @@ def analyze_recording_timing(recording_folder, window_size_ms=10):
     
     # load labels
     labels = np.load(labels_path, allow_pickle=True).item()
-    t_go = labels['go_frame_time_us']
+    t_go = labels['go_time_us']
     t_initial = labels['t_initial_time_us']
     
     # find the .raw event file
@@ -181,10 +185,13 @@ def plot_landmark_comparison(frames_dict, recording_name):
 
 if __name__ == '__main__':
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
+    output_base = Path(os.getenv("EXPLORATION_DIR"))
     
     print("="*60)
     print("EXPLORATORY TIMING ANALYSIS")
     print("="*60)
+    print(f"Input: {base}")
+    print(f"Output: {output_base}")
     
     # analyze timing for each gesture (first 5 recordings per gesture)
     for gesture in ['rock', 'paper', 'scissor']:
@@ -204,8 +211,8 @@ if __name__ == '__main__':
         
         if results:
             fig = plot_timing_analysis(results, gesture)
-            output_path = Path('exploratory_timing_plots') / f'{gesture}_timing.png'
-            output_path.parent.mkdir(exist_ok=True)
+            output_path = output_base / f'{gesture}_timing.png'
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             fig.savefig(output_path, dpi=150, bbox_inches='tight')
             plt.close(fig)
             print(f"  ✓ Saved timing plot to {output_path}")
@@ -227,12 +234,12 @@ if __name__ == '__main__':
             if result is not None:
                 frames, landmarks = result
                 fig = plot_landmark_comparison(frames, f"{gesture}/{folder.name}")
-                output_path = Path('exploratory_timing_plots') / 'landmarks' / f'{gesture}_{folder.name}.png'
+                output_path = output_base / 'landmarks' / f'{gesture}_{folder.name}.png'
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 fig.savefig(output_path, dpi=150, bbox_inches='tight')
                 plt.close(fig)
                 print(f"  ✓ {gesture}/{folder.name}")
     
     print("\n" + "="*60)
-    print("Analysis complete. Check exploratory_timing_plots/ folder")
+    print(f"Analysis complete. Check {output_base}/ folder")
     print("="*60)
