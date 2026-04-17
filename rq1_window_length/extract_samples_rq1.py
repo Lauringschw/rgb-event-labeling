@@ -4,60 +4,62 @@ from metavision_core.event_io import EventsIterator
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+from multiprocessing import Pool, cpu_count
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
 def extract_event_samples_rq1(recording_folder):
     """
-    RQ1: Extract samples at different window lengths (20ms, 30ms, 50ms)
+    RQ1: Extract samples at different window lengths (100ms, 150ms, 200ms)
     at t_initial landmark only.
     """
-    labels_path = f'{recording_folder}/labels.npy'
-    if not Path(labels_path).exists():
-        print(f"⚠ Skipping {recording_folder} - labels.npy not found")
-        return None
-    
-    # load labels
-    labels = np.load(labels_path, allow_pickle=True).item()
-    t_initial = labels['t_initial_time_us']
-    
-    # RQ1: only t_initial landmark
-    landmark = t_initial
-    
-    # RQ1: test three window lengths
-    windows = [100_000, 150_000, 200_000]  # µs
-    
-    # find the .raw event file
-    event_files = glob.glob(f'{recording_folder}/prophesee_events.raw')
-    if not event_files:
-        raise FileNotFoundError(f"no prophesee_events.raw found in {recording_folder}")
-    
-    event_file = event_files[0]
-    print(f"loading events from {event_file}")
-    
-    # load all events
-    mv_it = EventsIterator(event_file)
-    all_events = []
-    for evs in mv_it:
-        all_events.append(evs)
-    events = np.concatenate(all_events)
-    
-    print(f"total events loaded: {len(events)}")
-    
-    # extract samples at t_initial with different windows
-    samples = {}
-    for window_us in windows:
-        mask = (events['t'] >= landmark) & (events['t'] < landmark + window_us)
-        sample_events = events[mask]
+    try:
+        labels_path = f'{recording_folder}/labels.npy'
+        if not Path(labels_path).exists():
+            return None, f"⚠ Skipping {recording_folder} - labels.npy not found"
         
-        event_frame = events_to_frame(sample_events, height=720, width=1280)
+        # load labels
+        labels = np.load(labels_path, allow_pickle=True).item()
+        t_initial = labels['t_initial_time_us']
         
-        sample_name = f'{window_us//1000}ms'
-        samples[sample_name] = event_frame
+        # RQ1: only t_initial landmark
+        landmark = t_initial
         
-        print(f"  {sample_name}: {len(sample_events)} events")
-    
-    return samples
+        # RQ1: test three window lengths
+        windows = [100_000, 150_000, 200_000]  # µs
+        
+        # find the .raw event file
+        event_files = glob.glob(f'{recording_folder}/prophesee_events.raw')
+        if not event_files:
+            return None, f"⚠ No .raw file in {recording_folder}"
+        
+        event_file = event_files[0]
+        
+        # load all events
+        mv_it = EventsIterator(event_file)
+        all_events = []
+        for evs in mv_it:
+            all_events.append(evs)
+        events = np.concatenate(all_events)
+        
+        # extract samples at t_initial with different windows
+        samples = {}
+        for window_us in windows:
+            mask = (events['t'] >= landmark) & (events['t'] < landmark + window_us)
+            sample_events = events[mask]
+            
+            event_frame = events_to_frame(sample_events, height=720, width=1280)
+            
+            sample_name = f'{window_us//1000}ms'
+            samples[sample_name] = event_frame
+        
+        # save immediately
+        np.save(Path(recording_folder) / 'event_samples_rq1.npy', samples)
+        
+        return recording_folder, "✓"
+        
+    except Exception as e:
+        return recording_folder, f"✗ Error: {str(e)}"
 
 def events_to_frame(events, height, width):
     """2D event count histogram with normalization (following paper_13 methodology)"""
@@ -84,20 +86,42 @@ def events_to_frame(events, height, width):
 if __name__ == '__main__':
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
     
+    # collect all recording folders
+    all_folders = []
     for gesture in ['rock', 'paper', 'scissor']:
         gesture_dir = base / gesture
         if not gesture_dir.exists():
             print(f'⚠ Gesture directory {gesture_dir} not found')
             continue
         
-        # Get all subfolders (recordings) in the gesture directory
-        recording_folders = [f for f in gesture_dir.iterdir() if f.is_dir()]
-        recording_folders.sort()  # sort to process in order
+        recording_folders = [str(f) for f in gesture_dir.iterdir() if f.is_dir()]
+        all_folders.extend(recording_folders)
+    
+    all_folders.sort()
+    
+    print(f"Found {len(all_folders)} recordings to process")
+    print(f"Using {cpu_count()} CPU cores for parallel processing\n")
+    
+    # process in parallel
+    with Pool(processes=cpu_count()) as pool:
+        results = pool.map(extract_event_samples_rq1, all_folders)
+    
+    # print summary
+    print("\n" + "="*60)
+    print("EXTRACTION SUMMARY")
+    print("="*60)
+    
+    success_count = 0
+    for folder, status in results:
+        if folder is None:
+            continue
         
-        for folder in recording_folders:
-            samples = extract_event_samples_rq1(str(folder))
-            if samples is not None:
-                np.save(folder / 'event_samples_rq1.npy', samples)
-                print(f'✓ {gesture}/{folder.name}')
-            else:
-                print(f'✗ {gesture}/{folder.name} - skipped')
+        gesture = Path(folder).parent.name
+        recording = Path(folder).name
+        
+        if status == "✓":
+            success_count += 1
+        
+        print(f"{gesture}/{recording}: {status}")
+    
+    print(f"\n✓ Successfully processed {success_count}/{len(all_folders)} recordings")
