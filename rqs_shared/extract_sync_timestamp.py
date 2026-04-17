@@ -6,7 +6,6 @@ import os
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
-
 def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
     """Extract rising-edge external trigger timestamps from a RAW file."""
     reader = RawReader(str(raw_path))
@@ -27,10 +26,9 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
     if not trigger_times:
         raise ValueError("No rising-edge external trigger events found in RAW file.")
 
-    # Deduplicate and sort (handles SDK duplicate bug)
+    # Deduplicate and sort ==> SDK duplicate bug
     trigger_times = np.array(sorted(set(trigger_times)), dtype=np.int64)
 
-    # Diagnostics
     duration_s = (trigger_times[-1] - trigger_times[0]) / 1e6
     fps = (len(trigger_times) - 1) / duration_s
     
@@ -39,7 +37,6 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
     print(f"  FPS: {fps:.2f}")
 
     return trigger_times
-
 
 def process_recording(folder: Path) -> bool:
     """Extract and save trigger timestamps for a single recording."""

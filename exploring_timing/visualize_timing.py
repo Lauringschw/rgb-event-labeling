@@ -19,7 +19,7 @@ def analyze_recording_timing(recording_folder, window_size_ms=10):
     """
     labels_path = f'{recording_folder}/labels.npy'
     if not Path(labels_path).exists():
-        print(f"⚠ Skipping {recording_folder} - labels.npy not found")
+        print(f"!! Skipping {recording_folder} - labels.npy not found")
         return None
     
     # load labels
@@ -30,7 +30,7 @@ def analyze_recording_timing(recording_folder, window_size_ms=10):
     # find the .raw event file
     event_files = glob.glob(f'{recording_folder}/prophesee_events.raw')
     if not event_files:
-        print(f"⚠ No .raw file found in {recording_folder}")
+        print(f"!! No .raw file found in {recording_folder}")
         return None
     
     event_file = event_files[0]
@@ -42,12 +42,12 @@ def analyze_recording_timing(recording_folder, window_size_ms=10):
         all_events.append(evs)
     events = np.concatenate(all_events)
     
-    # focus on events from GO to GO+500ms (typical gesture duration)
+    # focus on events from GO to GO+500ms
     mask = (events['t'] >= t_go) & (events['t'] < t_go + 500_000)
     gesture_events = events[mask]
     
     if len(gesture_events) == 0:
-        print(f"⚠ No events in gesture window for {recording_folder}")
+        print(f"!! No events in gesture window for {recording_folder}")
         return None
     
     # create sliding windows

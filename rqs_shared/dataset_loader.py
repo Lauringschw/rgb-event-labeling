@@ -34,7 +34,7 @@ class GestureDataset:
                 print(f'⚠ Gesture directory {gesture_dir} not found')
                 continue
             
-            # Get all subfolders (recordings)
+            # Get all subfolders ==> recordings
             recording_folders = [f for f in os.listdir(gesture_dir) if os.path.isdir(os.path.join(gesture_dir, f))]
             recording_folders.sort()
             
@@ -54,7 +54,7 @@ class GestureDataset:
                     dataset[window]['data'].append(samples[window])
                     dataset[window]['labels'].append(label)
         
-        print(f'✓ loaded RQ1 samples from {total_count - missing_count}/{total_count} recordings')
+        print(f'- loaded RQ1 samples from {total_count - missing_count}/{total_count} recordings')
         
         # convert to arrays
         for window in dataset:
@@ -74,7 +74,7 @@ class GestureDataset:
         )
         
         # Second split: separate validation from training
-        # Use different random_state to ensure independence
+        # Using different random_state to ensure independence
         X_train, X_val, y_train, y_val = train_test_split(
             X_temp, y_temp, test_size=val_size/(1-test_size), random_state=123, stratify=y_temp
         )
@@ -105,7 +105,7 @@ class GestureDataset:
                 print(f'⚠ Gesture directory {gesture_dir} not found')
                 continue
             
-            # Get all subfolders (recordings)
+            # Get all subfolders ==> recordings
             recording_folders = [f for f in os.listdir(gesture_dir) if os.path.isdir(os.path.join(gesture_dir, f))]
             recording_folders.sort()
             
@@ -125,7 +125,7 @@ class GestureDataset:
                     dataset[landmark]['data'].append(samples[landmark])
                     dataset[landmark]['labels'].append(label)
         
-        print(f'✓ loaded RQ2 samples from {total_count - missing_count}/{total_count} recordings')
+        print(f'- loaded RQ2 samples from {total_count - missing_count}/{total_count} recordings')
         
         # convert to arrays
         for landmark in dataset:
@@ -174,7 +174,7 @@ class GestureDataset:
                 print(f'⚠ Gesture directory {gesture_dir} not found')
                 continue
             
-            # Get all subfolders (recordings)
+            # Get all subfolders ==> recordings
             recording_folders = [f for f in os.listdir(gesture_dir) if os.path.isdir(os.path.join(gesture_dir, f))]
             recording_folders.sort()
             
@@ -194,7 +194,7 @@ class GestureDataset:
                     dataset[rep]['data'].append(samples[rep])
                     dataset[rep]['labels'].append(label)
         
-        print(f'✓ loaded RQ3 samples from {total_count - missing_count}/{total_count} recordings')
+        print(f'- loaded RQ3 samples from {total_count - missing_count}/{total_count} recordings')
         
         # convert to arrays
         for rep in dataset:

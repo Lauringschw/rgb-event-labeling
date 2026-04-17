@@ -1,7 +1,3 @@
-"""
-Test different window lengths and offsets to find optimal parameters
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
@@ -174,7 +170,6 @@ def plot_configuration_heatmap(summary, metric='event_counts'):
         ax.set_ylabel('Offset from t_initial')
         ax.set_title(f'{gesture.upper()}\nAvg {metric.replace("_", " ")}')
         
-        # add text annotations
         for i in range(len(offsets)):
             for j in range(len(windows)):
                 text = ax.text(j, i, f'{matrix[i, j]:.0f}',
@@ -219,7 +214,7 @@ if __name__ == '__main__':
                 fig.savefig(output_path, dpi=150, bbox_inches='tight')
                 plt.close(fig)
                 
-                print(f"  ✓ {folder.name}")
+                print(f"  - {folder.name}")
     
     # create summary heatmaps
     print("\nGenerating summary heatmaps...")
@@ -228,12 +223,12 @@ if __name__ == '__main__':
     fig1 = plot_configuration_heatmap(summary, metric='event_counts')
     fig1.savefig(output_base / 'summary_event_counts.png', dpi=150, bbox_inches='tight')
     plt.close(fig1)
-    print("  ✓ Event counts heatmap")
+    print("  - Event counts heatmap")
     
     fig2 = plot_configuration_heatmap(summary, metric='active_pixels')
     fig2.savefig(output_base / 'summary_active_pixels.png', dpi=150, bbox_inches='tight')
     plt.close(fig2)
-    print("  ✓ Active pixels heatmap")
+    print("  - Active pixels heatmap")
     
     print("\n" + "="*60)
     print(f"Window exploration complete. Check {output_base}/ folder")

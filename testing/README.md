@@ -11,14 +11,13 @@ This folder contains quick scripts to inspect recorded RGB/event data and timing
    1. Reads one Prophesee event file and summarizes event timeline.
    2. Prints total events, first timestamp, last timestamp, and duration.
 
-
 ## Quick usage
 
 Run from the project root:
 
 ```bash
-python testing/test_rgb.py
-python testing/test_dvs.py
+python3 testing/test_rgb.py
+python3 testing/test_dvs.py
 ```
 
 ## Typical outputs
