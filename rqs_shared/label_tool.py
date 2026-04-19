@@ -20,15 +20,17 @@ class GestureLabelingTool:
         print(f"INITIALIZING: {self.recording_folder.name}")
         print(f"{'='*60}")
         print(f"Loaded {self.n_frames} trigger timestamps from {trigger_path.name}")
-        
-        # load basler files - sorted by frame number
+                
+        # load Basler raw files sorted by frame number
+        # basler_files = ['Basler__0.raw', ..., 'Basler__<n_frames-1>.raw'] ==> stores filenames
+        # only keep frames 0 to n_frames-1 (matching trigger count)
         self.basler_files = sorted(
             [f for f in os.listdir(self.recording_folder) 
              if f.startswith('Basler') and f.endswith('.raw')],
-            key=lambda x: int(x.split('__')[1].split('.')[0])  # Extract frame number
-        )[:self.n_frames]
+            key=lambda x: int(x.split('__')[1].split('.')[0])  # extract frame number
+        )[:self.n_frames] # trucated to match number of triggers
         
-        print(f"Found {len(self.basler_files)} Basler .raw files (truncated to {self.n_frames})")
+        print(f"Found {len(self.basler_files)} Basler .raw files. Truncated to {self.n_frames})")
         
         if len(self.basler_files) == 0:
             raise FileNotFoundError(f"No Basler .raw files found in {self.recording_folder}")
@@ -52,7 +54,7 @@ class GestureLabelingTool:
         self.img_display = None
         self.setup_ui()
         
-        # Jump to GO frame if available
+        # jump to GO frame if available
         if self.go_frame is not None:
             print(f"Jumping to GO frame: {self.go_frame}")
             self.load_frame(self.go_frame)
@@ -65,13 +67,13 @@ class GestureLabelingTool:
         print(f"update_go_marker called: go_frame={self.go_frame}")
         
         if hasattr(self, 'slider'):
-            # Remove old marker if it exists
+            # remove old marker if it exists
             if self.go_marker is not None:
                 self.go_marker.remove()
                 self.go_marker = None
                 print("  Removed old GO marker")
 
-            # Draw new marker if GO is set
+            # draw new marker if GO is set
             if self.go_frame is not None:
                 self.go_marker = self.slider.ax.axvline(
                     self.go_frame,
@@ -195,7 +197,6 @@ class GestureLabelingTool:
             self.save_and_next()
     
     def update_title(self):
-        # Calculate time relative to first frame in milliseconds
         time_relative_ms = (self.trigger_times[self.current_frame] - self.trigger_times[0]) / 1000
         
         title = f"{self.recording_folder.name} | Frame {self.current_frame}/{self.n_frames-1} | "

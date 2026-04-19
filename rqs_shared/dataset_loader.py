@@ -31,19 +31,19 @@ class GestureDataset:
         for gesture in self.gestures:
             gesture_dir = os.path.join(self.base_folder, gesture)
             if not os.path.exists(gesture_dir):
-                print(f'⚠ Gesture directory {gesture_dir} not found')
+                print(f'!! Gesture directory {gesture_dir} not found')
                 continue
             
-            # Get all subfolders ==> recordings
+            # get all subfolders of one gesture ==> recordings
             recording_folders = [f for f in os.listdir(gesture_dir) if os.path.isdir(os.path.join(gesture_dir, f))]
-            recording_folders.sort()
+            recording_folders.sort() # list of folder names (p_1, p_2, ..., p_n)
             
             for folder_name in recording_folders:
                 total_count += 1
                 sample_path = os.path.join(self.base_folder, gesture, folder_name, 'event_samples_rq1.npy')
                 
                 if not os.path.exists(sample_path):
-                    print(f'⚠ missing: {gesture}/{folder_name}')
+                    print(f'!! missing: {gesture}/{folder_name}')
                     missing_count += 1
                     continue
                 

@@ -11,37 +11,36 @@ import os
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
-# Add rqs_shared to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'rqs_shared'))
 
 from dataset_loader import GestureDataset
 
 # ===== Simple CNN for small dataset =====
 class SimpleCNN(nn.Module):
-    """Lightweight 3-layer CNN for 1200 samples
-    Much simpler than ResNet to reduce overfitting
-    """
-    def __init__(self, num_classes=3):
+    """Lightweight 3-layer CNN for 1200 samples"""
+    
+    def __init__(self, num_classes=3): # 3 classes
         super(SimpleCNN, self).__init__()
         
+        # feature extractor (3 convolution layers)
         self.features = nn.Sequential(
-            # Layer 1: input 1x720x1280 -> 32x360x640
+            # Layer 1: input 1x720x1280 --> 32x360x640
             nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=2),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),  # -> 32x180x320
+            nn.MaxPool2d(2),  # --> 32x180x320
             
             # Layer 2: 32x180x320 -> 64x90x160
             nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),  # -> 64x45x80
+            nn.MaxPool2d(2),  # --> 64x45x80
             
             # Layer 3: 64x45x80 -> 128x23x40
             nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),  # -> 128x11x20
+            nn.MaxPool2d(2),  # --> 128x11x20
         )
         
         self.classifier = nn.Sequential(

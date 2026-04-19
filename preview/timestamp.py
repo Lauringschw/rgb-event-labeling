@@ -33,7 +33,7 @@ def get_metadata_folder(env_path: Path, metadata_override: Path | None):
         print("Error: RECORDINGS_DIR and DIR must be set in .env or pass --metadata.")
         return None
 
-    return Path(recordings_dir) / Path(directory) / "other" / "o_1"
+    return Path(recordings_dir) / Path(directory) / "paper" / "p_1"
 
 
 def main():

@@ -17,41 +17,42 @@ def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
             
             triggers = reader.get_ext_trigger_events()
             if len(triggers) > 0:
-                # Keep only rising edges (p == 1)
+                # only rising edges (p == 1)
                 trigger_times.extend(t["t"] for t in triggers if t["p"] == 1)
                 reader.clear_ext_trigger_events()
     finally:
         reader.reset()
 
     if not trigger_times:
-        raise ValueError("No rising-edge external trigger events found in RAW file.")
+        raise ValueError("No rising-edge external trigger events found in RAW file")
 
-    # Deduplicate and sort ==> SDK duplicate bug
+    # removes duplicate and sort ==> SDK duplicate bug
     trigger_times = np.array(sorted(set(trigger_times)), dtype=np.int64)
 
-    duration_s = (trigger_times[-1] - trigger_times[0]) / 1e6
-    fps = (len(trigger_times) - 1) / duration_s
+    # 1 trigger = 1 frame
+    duration_s = (trigger_times[-1] - trigger_times[0]) / 1e6 # duration = last - first
+    fps = (len(trigger_times) - 1) / duration_s # fps = # of frames / duration
     
     print(f"  Total triggers: {len(trigger_times)}")
     print(f"  Duration: {duration_s:.3f}s")
     print(f"  FPS: {fps:.2f}")
 
-    return trigger_times
+    return trigger_times # Basler frame capture times, encoded as Prophesee DVS timestamps
 
 def process_recording(folder: Path) -> bool:
     """Extract and save trigger timestamps for a single recording."""
-    raw_files = sorted(folder.glob("prophesee_events*.raw"))
-    if not raw_files:
+    raw_file = folder / "prophesee_events.raw"
+    if not raw_file.exists():
         return False
-    
+
     try:
-        timestamps = extract_trigger_timestamps(raw_files[0])
+        timestamps = extract_trigger_timestamps(raw_file)
         output_path = folder / "basler_frame_timestamps.npy"
         np.save(output_path, timestamps)
-        print(f"  ✓ Saved to: {output_path.name}")
+        print(f"  - Saved to: {output_path.name}")
         return True
     except Exception as e:
-        print(f"  ✗ Error: {e}")
+        print(f"  !! Error: {e}")
         return False
 
 
