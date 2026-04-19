@@ -6,7 +6,7 @@ from pathlib import Path
 load_dotenv(Path(__file__).parent.parent / '.env')
 base = Path(os.getenv("RESULTS_DIR"))
 
-num = 1 # 1, 2, 3
+num = 3 # 1, 2, 3
 metadata = np.load(base / f"rq{num}_results.npy", allow_pickle=True).item()
 
 def classification_report_from_cm(cm):

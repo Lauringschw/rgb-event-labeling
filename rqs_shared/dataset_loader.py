@@ -89,7 +89,7 @@ class GestureDataset:
     
     # ======== RQ2: Temporal Landmark ========
     def load_rq2_samples(self):
-        """Load RQ2 samples: different landmarks with 50ms window"""
+        """Load RQ2 samples: different landmarks with 150ms window"""
         dataset = {
             't_initial': {'data': [], 'labels': []},
             't_early': {'data': [], 'labels': []},
@@ -102,7 +102,7 @@ class GestureDataset:
         for gesture in self.gestures:
             gesture_dir = os.path.join(self.base_folder, gesture)
             if not os.path.exists(gesture_dir):
-                print(f'⚠ Gesture directory {gesture_dir} not found')
+                print(f'!! Gesture directory {gesture_dir} not found')
                 continue
             
             # Get all subfolders ==> recordings
@@ -114,7 +114,7 @@ class GestureDataset:
                 sample_path = os.path.join(self.base_folder, gesture, folder_name, 'event_samples_rq2.npy')
                 
                 if not os.path.exists(sample_path):
-                    print(f'⚠ missing: {gesture}/{folder_name}')
+                    print(f'!! missing: {gesture}/{folder_name}')
                     missing_count += 1
                     continue
                 
@@ -171,10 +171,10 @@ class GestureDataset:
         for gesture in self.gestures:
             gesture_dir = os.path.join(self.base_folder, gesture)
             if not os.path.exists(gesture_dir):
-                print(f'⚠ Gesture directory {gesture_dir} not found')
+                print(f'!! Gesture directory {gesture_dir} not found')
                 continue
             
-            # Get all subfolders ==> recordings
+            # get all subfolders ==> recordings
             recording_folders = [f for f in os.listdir(gesture_dir) if os.path.isdir(os.path.join(gesture_dir, f))]
             recording_folders.sort()
             
@@ -183,7 +183,7 @@ class GestureDataset:
                 sample_path = os.path.join(self.base_folder, gesture, folder_name, 'event_samples_rq3.npy')
                 
                 if not os.path.exists(sample_path):
-                    print(f'⚠ missing: {gesture}/{folder_name}')
+                    print(f'!! missing: {gesture}/{folder_name}')
                     missing_count += 1
                     continue
                 

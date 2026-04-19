@@ -46,7 +46,7 @@ def extract_event_samples_rq1(recording_folder):
         for window_us in windows: # [100ms, 150ms, 200ms]
             # create tempral mask --> select events in the time windo
             mask = (events['t'] >= landmark) & (events['t'] < landmark + window_us)
-            #       events['t'] >= t_initial AND events['t'] < t_initial + 100ms
+            #       events['t'] >= t_initial AND events['t'] < t_initial + 100ms/150ms/200ms
             
             # filter events using the mask
             sample_events = events[mask] # only events in [t_initial, t_initial+window)

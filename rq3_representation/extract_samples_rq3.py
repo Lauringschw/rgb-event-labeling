@@ -14,24 +14,22 @@ def extract_event_samples_rq3(recording_folder):
     at t_initial with 150ms window (optimal from RQ1).
     """
     try:
-        # load labels
         labels_path = f'{recording_folder}/labels.npy'
         if not Path(labels_path).exists():
-            return None, f"⚠ No labels.npy"
+            return None, f"!! Skipping {recording_folder} - labels.npy not found"
         
+        # load labels
         labels = np.load(labels_path, allow_pickle=True).item()
-        t_initial = labels['t_initial_time_us']
+        t_initial = labels['t_initial_time_us'] # t_initial
         
         # RQ3: fixed landmark and window (150ms from RQ1)
         landmark = t_initial
         window_us = 150_000  # 150ms (optimal from RQ1)
         
-        # find the .raw event file
-        event_files = glob.glob(f'{recording_folder}/prophesee_events.raw')
-        if not event_files:
-            return None, f"⚠ No .raw file"
-        
-        event_file = event_files[0]
+         # find the Prophesee .raw event file
+        event_file = Path(recording_folder) / 'prophesee_events.raw'
+        if not event_file.exists():
+            return None, f"!! No prophesee_events.raw in {recording_folder}"
         
         # load all events
         mv_it = EventsIterator(event_file)
@@ -40,9 +38,12 @@ def extract_event_samples_rq3(recording_folder):
             all_events.append(evs)
         events = np.concatenate(all_events)
         
-        # extract events in window
+        # create temporal mask --> select events in the time windo
         mask = (events['t'] >= landmark) & (events['t'] < landmark + window_us)
-        sample_events = events[mask]
+        #       events['t'] >= t_initial AND events['t'] < t_initial + 150ms
+        
+        # filter events using the mask
+        sample_events = events[mask] # only events in [t_initial, t_initial+window)
         
         # RQ3: generate three different representations
         samples = {
@@ -54,7 +55,7 @@ def extract_event_samples_rq3(recording_folder):
         # save immediately
         np.save(Path(recording_folder) / 'event_samples_rq3.npy', samples)
         
-        return recording_folder, "✓"
+        return recording_folder, "- COMPLETED!"
         
     except Exception as e:
         return recording_folder, f"✗ Error: {str(e)}"
@@ -86,17 +87,18 @@ def events_to_voxel_grid(events, height, width, n_bins=5):
     if len(events) == 0:
         return np.zeros((n_bins, height, width), dtype=np.float32)
     
+    # 3D array: 5 time bins x 720 height x 1280 width
     voxel = np.zeros((n_bins, height, width), dtype=np.float32)
     
-    t_min = events['t'].min()
-    t_max = events['t'].max()
-    t_range = t_max - t_min
+    t_min = events['t'].min() # t_initial
+    t_max = events['t'].max() # last event
+    t_range = t_max - t_min # total length
     
     if t_range == 0:
         # all events at same time, put in first bin
         for ev in events:
             x, y, p = ev['x'], ev['y'], ev['p']
-            voxel[0, y, x] += 1 if p == 1 else -1
+            voxel[0, y, x] += 1 if p == 1 else -1 # all into voxel 1
     else:
         for ev in events:
             x, y, p, t = ev['x'], ev['y'], ev['p'], ev['t']
@@ -109,8 +111,12 @@ def events_to_voxel_grid(events, height, width, n_bins=5):
 
 def events_to_time_surface(events, height, width, landmark):
     """Time surface: store time-since-landmark for latest event at each pixel"""
+    
+    # 2D grid (720x1280)
     surface = np.zeros((height, width), dtype=np.float32)
     
+    # each new event overwrites the previous value
+    # only the last event matters
     for ev in events:
         x, y, t = ev['x'], ev['y'], ev['t']
         # store time elapsed since landmark (in ms)
@@ -126,7 +132,7 @@ if __name__ == '__main__':
     for gesture in ['rock', 'paper', 'scissor']:
         gesture_dir = base / gesture
         if not gesture_dir.exists():
-            print(f'⚠ Gesture directory {gesture_dir} not found')
+            print(f'!! Gesture directory {gesture_dir} not found')
             continue
         
         recording_folders = [str(f) for f in gesture_dir.iterdir() if f.is_dir()]
@@ -154,9 +160,9 @@ if __name__ == '__main__':
         gesture = Path(folder).parent.name
         recording = Path(folder).name
         
-        if status == "✓":
+        if status == "- COMPLETED!":
             success_count += 1
         
         print(f"{gesture}/{recording}: {status}")
     
-    print(f"\n✓ Successfully processed {success_count}/{len(all_folders)} recordings")
+    print(f"\n- Successfully processed {success_count}/{len(all_folders)} recordings")
