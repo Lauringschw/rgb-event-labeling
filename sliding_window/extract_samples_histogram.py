@@ -7,8 +7,8 @@ import os
 load_dotenv(Path(__file__).parent.parent / '.env')
 
 # ======== Configuration ========
-WINDOW_SIZE_EVENTS = 50000  # events per sample
-STRIDE_EVENTS = 10000       # slide by 10k events (80% overlap)
+WINDOW_SIZE_EVENTS = 20000  # Changed from 50000
+STRIDE_EVENTS = 4000        # Changed from 10000 (maintains 80% overlap)
 SENSOR_HEIGHT = 720
 SENSOR_WIDTH = 1280
 
