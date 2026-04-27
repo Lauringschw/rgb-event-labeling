@@ -73,18 +73,32 @@ def process_recording(folder: Path):
     
     # Load labels
     labels = np.load(labels_file, allow_pickle=True).item()
-    t_initial = labels['t_initial']  # microseconds
+    t_initial = labels['t_initial_time_us']  # microseconds
     
     # Define extraction range: from t_initial to +300ms
     t_start = t_initial
     t_end = t_initial + 300_000  # 300ms in microseconds
     
-    # Load events in range
-    mv_iterator = EventsIterator(str(raw_file), start_ts=t_start, delta_t=t_end - t_start)
-    events = mv_iterator.get_size()  # get all events in range
+    # Load events using EventsIterator
+    mv_iterator = EventsIterator(str(raw_file))
+    all_events = []
+    
+    for events in mv_iterator:
+        all_events.append(events)
+    
+    # Concatenate all events
+    if len(all_events) == 0:
+        print(f"  !! No events in file")
+        return None
+    
+    all_events = np.concatenate(all_events)
+    
+    # Filter events to our time range
+    mask = (all_events['t'] >= t_start) & (all_events['t'] < t_end)
+    events = all_events[mask]
     
     if len(events) == 0:
-        print(f"  !! No events in range")
+        print(f"  !! No events in range [{t_start}, {t_end})")
         return None
     
     # Extract sliding window samples
