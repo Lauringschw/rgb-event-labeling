@@ -8,61 +8,114 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 SLIDING_DIR = Path(os.getenv("SLIDING_DIR"))
 
+GESTURE_TO_LABEL = {'rock': 0, 'paper': 1, 'scissor': 2}
+LABEL_TO_GESTURE = {v: k for k, v in GESTURE_TO_LABEL.items()}
+
+
 class HistogramDataset:
-    
-    def __init__(self):
-        self.gestures = ['rock', 'paper', 'scissor']
-        self.gesture_to_label = {'rock': 0, 'paper': 1, 'scissor': 2}
-        self.label_to_gesture = {0: 'rock', 1: 'paper', 2: 'scissor'}
-    
+
     def load_samples(self):
-        """Load consolidated histogram dataset"""
-        data_path = SLIDING_DIR / "histogram_data.npy"
+        """
+        Load data, labels, and recording_ids from disk.
+        Returns dict with keys: data, labels, recording_ids
+        """
+        data_path   = SLIDING_DIR / "histogram_data.npy"
         labels_path = SLIDING_DIR / "histogram_labels.npy"
-        
-        if not data_path.exists() or not labels_path.exists():
-            raise FileNotFoundError(
-                f"Dataset not found. Run extract_samples_histogram.py first.\n"
-                f"Expected:\n  - {data_path}\n  - {labels_path}"
-            )
-        
-        data = np.load(data_path)
-        labels = np.load(labels_path)
-        
-        print(f'- loaded {len(data)} samples from {SLIDING_DIR}')
-        print(f'- data shape: {data.shape}')
-        
-        # Print class distribution
-        for gesture_idx in range(3):
-            count = np.sum(labels == gesture_idx)
-            gesture_name = self.label_to_gesture[gesture_idx]
-            print(f'  {gesture_name}: {count} samples')
-        
+        recids_path = SLIDING_DIR / "histogram_recording_ids.npy"
+
+        for p in [data_path, labels_path, recids_path]:
+            if not p.exists():
+                raise FileNotFoundError(
+                    f"Missing: {p}\n"
+                    f"Run extract_samples_histogram.py first."
+                )
+
+        data        = np.load(data_path)
+        labels      = np.load(labels_path)
+        recording_ids = np.load(recids_path)
+
+        print(f"Loaded {len(data)} samples from {SLIDING_DIR}")
+        print(f"Data shape: {data.shape}")
+        print(f"Unique recordings: {len(np.unique(recording_ids))}")
+        for idx, name in LABEL_TO_GESTURE.items():
+            print(f"  {name}: {np.sum(labels == idx)} samples")
+
         return {
-            'data': data,
-            'labels': labels
+            'data':          data,
+            'labels':        labels,
+            'recording_ids': recording_ids,
         }
-    
-    def get_split(self, dataset, test_size=0.2, val_size=0.1):
-        """Get train/val/test split"""
-        X = dataset['data']
-        y = dataset['labels']
-        
-        # First split: separate test set
-        X_temp, X_test, y_temp, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=42, stratify=y
+
+    def get_split(self, dataset, test_size=0.20, val_size=0.10):
+        """
+        Recording-level stratified split -> 70 / 10 / 20 train / val / test.
+
+        1. Get the unique (recording_id, gesture_label) pairs.
+        2. Split recording IDs into test vs rest (stratified by gesture).
+        3. Split rest into train vs val (stratified by gesture).
+        4. Assign every SAMPLE to the set its recording belongs to.
+
+        Seeds: 42 for test split, 123 for val split.
+        """
+        data          = dataset['data']
+        labels        = dataset['labels']
+        recording_ids = dataset['recording_ids']
+
+        # == build per-recording label (label of the first sample for that rec) ==
+        unique_recs = np.unique(recording_ids)
+        rec_labels  = np.array([
+            labels[recording_ids == r][0] for r in unique_recs
+        ])
+
+        # == split 1: carve out test set (20%) ==================================
+        recs_temp, recs_test, _, _ = train_test_split(
+            unique_recs, rec_labels,
+            test_size=test_size,
+            random_state=42,
+            stratify=rec_labels,
         )
-        
-        # Second split: separate validation from training
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_temp, y_temp, test_size=val_size/(1-test_size), 
-            random_state=123, stratify=y_temp
+
+        # labels for the remaining recordings
+        rec_labels_temp = np.array([
+            labels[recording_ids == r][0] for r in recs_temp
+        ])
+
+        # == split 2: carve out val set (10% of total = 10/80 of remaining) ==
+        adjusted_val = val_size / (1.0 - test_size)   # 0.10 / 0.80 = 0.125
+        recs_train, recs_val, _, _ = train_test_split(
+            recs_temp, rec_labels_temp,
+            test_size=adjusted_val,
+            random_state=123,
+            stratify=rec_labels_temp,
         )
-        
-        print(f'\nSplit: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}')
-        
+
+        # == assign samples to sets based on recording membership ===============
+        def mask_for(rec_set):
+            return np.isin(recording_ids, rec_set)
+
+        train_mask = mask_for(recs_train)
+        val_mask   = mask_for(recs_val)
+        test_mask  = mask_for(recs_test)
+
+        X_train, y_train = data[train_mask], labels[train_mask]
+        X_val,   y_val   = data[val_mask],   labels[val_mask]
+        X_test,  y_test  = data[test_mask],  labels[test_mask]
+
+        print(f"\nRecording-level split:")
+        print(f"  train: {len(recs_train)} recordings -> {len(X_train)} samples")
+        print(f"  val:   {len(recs_val)}   recordings -> {len(X_val)} samples")
+        print(f"  test:  {len(recs_test)}  recordings -> {len(X_test)} samples")
+
+        for split_name, y in [('train', y_train), ('val', y_val), ('test', y_test)]:
+            counts = {LABEL_TO_GESTURE[i]: int(np.sum(y == i)) for i in range(3)}
+            print(f"  {split_name} class dist: {counts}")
+
         return {
             'X_train': X_train, 'y_train': y_train,
-            'X_val': X_val, 'y_val': y_val,
-            'X_test': X_test, 'y_test': y_test
+            'X_val':   X_val,   'y_val':   y_val,
+            'X_test':  X_test,  'y_test':  y_test,
+            # expose recording sets for reference / test-set evaluation
+            'recs_train': recs_train,
+            'recs_val':   recs_val,
+            'recs_test':  recs_test,
         }
