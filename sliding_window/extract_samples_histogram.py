@@ -7,10 +7,13 @@ import os
 load_dotenv(Path(__file__).parent.parent / '.env')
 
 # ======== Configuration ========
-WINDOW_SIZE_EVENTS = 20000  # Changed from 50000
-STRIDE_EVENTS = 4000        # Changed from 10000 (maintains 80% overlap)
+WINDOW_SIZE_EVENTS = 20000  # events per sample
+STRIDE_EVENTS = 4000        # slide by 4k events (80% overlap)
 SENSOR_HEIGHT = 720
 SENSOR_WIDTH = 1280
+BATCH_SIZE = 500  # Save every 500 samples to avoid memory issues
+
+MAX_RECORDINGS_PER_GESTURE = 350
 
 RECORDINGS_DIR = Path(os.getenv("RECORDINGS_DIR"))
 DIR = os.getenv("DIR")
@@ -108,17 +111,74 @@ def process_recording(folder: Path):
     return samples
 
 
+def save_batch(batch_samples, batch_labels, batch_num):
+    """Save a batch of samples to disk."""
+    batch_data_path = SLIDING_DIR / f"histogram_data_batch_{batch_num}.npy"
+    batch_labels_path = SLIDING_DIR / f"histogram_labels_batch_{batch_num}.npy"
+    
+    np.save(batch_data_path, np.array(batch_samples))
+    np.save(batch_labels_path, np.array(batch_labels))
+    
+    print(f"  → Saved batch {batch_num}: {len(batch_samples)} samples")
+
+
+def merge_batches():
+    """Merge all batch files into final dataset."""
+    print("\nMerging batches...")
+    
+    # Find all batch files
+    batch_data_files = sorted(SLIDING_DIR.glob("histogram_data_batch_*.npy"))
+    batch_label_files = sorted(SLIDING_DIR.glob("histogram_labels_batch_*.npy"))
+    
+    if len(batch_data_files) == 0:
+        print("No batches to merge!")
+        return
+    
+    # Load and concatenate
+    all_data = []
+    all_labels = []
+    
+    for data_file, label_file in zip(batch_data_files, batch_label_files):
+        print(f"  Loading {data_file.name}...")
+        all_data.append(np.load(data_file))
+        all_labels.append(np.load(label_file))
+    
+    # Concatenate
+    final_data = np.concatenate(all_data)
+    final_labels = np.concatenate(all_labels)
+    
+    # Save final files
+    output_data = SLIDING_DIR / "histogram_data.npy"
+    output_labels = SLIDING_DIR / "histogram_labels.npy"
+    
+    np.save(output_data, final_data)
+    np.save(output_labels, final_labels)
+    
+    print(f"\nFinal dataset: {len(final_data)} samples")
+    print(f"Saved to:")
+    print(f"  - {output_data}")
+    print(f"  - {output_labels}")
+    
+    # Clean up batch files
+    print("\nCleaning up batch files...")
+    for f in batch_data_files + batch_label_files:
+        f.unlink()
+    print("Done!")
+
+
 if __name__ == "__main__":
     base = RECORDINGS_DIR / DIR
     gestures = ['rock', 'paper', 'scissor']
     
-    all_samples = []
-    all_labels = []
+    batch_samples = []
+    batch_labels = []
+    batch_num = 0
     
     gesture_to_label = {'rock': 0, 'paper': 1, 'scissor': 2}
     
     total_processed = 0
     total_failed = 0
+    total_samples = 0
     
     for gesture in gestures:
         prefix = gesture[0]
@@ -126,7 +186,7 @@ if __name__ == "__main__":
         gesture_samples = 0
         
         i = 1
-        while True:
+        while i <= MAX_RECORDINGS_PER_GESTURE:  # Add this limit
             folder = base / gesture / f"{prefix}_{i}"
             
             if not folder.exists():
@@ -137,13 +197,22 @@ if __name__ == "__main__":
             samples = process_recording(folder)
             
             if samples is not None and len(samples) > 0:
-                # Add all samples from this recording
                 label = gesture_to_label[gesture]
+                
+                # Add samples to current batch
                 for sample in samples:
-                    all_samples.append(sample)
-                    all_labels.append(label)
+                    batch_samples.append(sample)
+                    batch_labels.append(label)
+                    
+                    # Save batch when it reaches BATCH_SIZE
+                    if len(batch_samples) >= BATCH_SIZE:
+                        save_batch(batch_samples, batch_labels, batch_num)
+                        batch_samples = []
+                        batch_labels = []
+                        batch_num += 1
                 
                 gesture_samples += len(samples)
+                total_samples += len(samples)
                 gesture_processed += 1
                 total_processed += 1
             else:
@@ -153,16 +222,13 @@ if __name__ == "__main__":
         
         print(f"\n{gesture.upper()}: {gesture_processed} recordings, {gesture_samples} samples")
     
-    # Save consolidated dataset
-    output_data = SLIDING_DIR / "histogram_data.npy"
-    output_labels = SLIDING_DIR / "histogram_labels.npy"
-    
-    np.save(output_data, np.array(all_samples))
-    np.save(output_labels, np.array(all_labels))
+    # Save remaining samples
+    if len(batch_samples) > 0:
+        save_batch(batch_samples, batch_labels, batch_num)
     
     print(f"\n{'='*50}")
-    print(f"TOTAL: {total_processed} recordings → {len(all_samples)} samples")
+    print(f"TOTAL: {total_processed} recordings → {total_samples} samples")
     print(f"Failed: {total_failed} recordings")
-    print(f"\nSaved to:")
-    print(f"  - {output_data}")
-    print(f"  - {output_labels}")
+    
+    # Merge all batches into final dataset
+    merge_batches()
