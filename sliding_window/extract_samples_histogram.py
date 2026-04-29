@@ -13,7 +13,7 @@ SENSOR_HEIGHT      = 720
 SENSOR_WIDTH       = 1280
 EXTRACTION_RANGE_US = 300_000   # 300 ms in microseconds
 BATCH_SIZE         = 500        # samples per batch file
-MAX_RECORDINGS_PER_GESTURE = 350
+MAX_RECORDINGS_PER_GESTURE = 320
 
 # == paths =====================================================================
 RECORDINGS_DIR = Path(os.getenv("RECORDINGS_DIR"))
