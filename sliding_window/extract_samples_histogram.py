@@ -224,5 +224,6 @@ if __name__ == "__main__":
     print(f"\n{'='*50}")
     print(f"TOTAL: {total_processed} recordings -> {total_samples} samples")
     print(f"Failed: {total_failed} recordings")
-
-    merge_batches()
+    
+    print(f"Batches saved to: {SLIDING_DIR}")
+    print(f"Next step: run merge.py")

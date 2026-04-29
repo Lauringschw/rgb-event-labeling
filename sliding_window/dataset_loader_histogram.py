@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
-SLIDING_DIR = Path(os.getenv("SLIDING_DIR"))
+SLIDING_DIR = Path(os.getenv("SLIDING_DIR_T7"))
 
 GESTURE_TO_LABEL = {'rock': 0, 'paper': 1, 'scissor': 2}
 LABEL_TO_GESTURE = {v: k for k, v in GESTURE_TO_LABEL.items()}
