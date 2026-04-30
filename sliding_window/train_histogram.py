@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
+import numpy as np
 import os
 from dotenv import load_dotenv
 
@@ -10,33 +11,38 @@ from dataset_loader_histogram import HistogramDataset
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
-# reads the MERGED file written by merge.py
 SLIDING_DIR_T7 = Path(os.getenv("SLIDING_DIR_T7"))
 SLIDING_DIR_T7.mkdir(parents=True, exist_ok=True)
+
+
+# == dataset ===================================================================
+
+class MmapGestureDataset(Dataset):
+    """Reads samples one at a time from mmap'd array — never loads full dataset into RAM."""
+    def __init__(self, data, labels, indices):
+        self.data    = data      # mmap array (N, 2, 720, 1280)
+        self.labels  = labels    # int64 array (N,)
+        self.indices = indices   # which rows belong to this split
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        i = self.indices[idx]
+        x = torch.from_numpy(self.data[i].copy())  # copy() needed for mmap
+        y = int(self.labels[i])
+        return x, y
 
 
 # == model =====================================================================
 
 class HistogramCNN(nn.Module):
-    """
-    3-block CNN for 2-channel histogram input (720×1280).
-    After 3× MaxPool2d(2): spatial dims -> 90×160.
-    """
     def __init__(self):
         super().__init__()
         self.features = nn.Sequential(
-            # Block 1
-            nn.Conv2d(2, 32, kernel_size=5, padding=2),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            # Block 2
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            # Block 3
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
+            nn.Conv2d(2, 32, kernel_size=5, padding=2), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
@@ -50,7 +56,7 @@ class HistogramCNN(nn.Module):
         return self.classifier(self.features(x))
 
 
-# == train / eval helpers ======================================================
+# == train / eval ==============================================================
 
 def train_epoch(model, loader, criterion, optimizer, device):
     model.train()
@@ -97,32 +103,55 @@ if __name__ == "__main__":
     print(f"Output dir : {SLIDING_DIR_T7}\n")
 
     # == load & split ==========================================================
-    # HistogramDataset reads from SLIDING_DIR_T7
     dataset = HistogramDataset()
-    data    = dataset.load_samples()
-    split   = dataset.get_split(data, test_size=0.20, val_size=0.10)
+    loaded  = dataset.load_samples()
+    split   = dataset.get_split(loaded, test_size=0.20, val_size=0.10)
+
+    raw_data   = loaded['data']    # mmap'd — never fully loaded into RAM
+    raw_labels = loaded['labels']
+
+    # convert masks to indices for MmapGestureDataset
+    recording_ids = loaded['recording_ids']
+    train_mask = np.isin(recording_ids, split['recs_train'])
+    val_mask   = np.isin(recording_ids, split['recs_val'])
+    test_mask  = np.isin(recording_ids, split['recs_test'])
+
+    train_idx = np.where(train_mask)[0]
+    val_idx   = np.where(val_mask)[0]
+    test_idx  = np.where(test_mask)[0]
+
+    print(f"\nIndex counts: train={len(train_idx)}, val={len(val_idx)}, test={len(test_idx)}")
 
     # == dataloaders ===========================================================
-    def make_loader(X, y, shuffle=False):
-        ds = TensorDataset(torch.FloatTensor(X), torch.LongTensor(y))
-        return DataLoader(ds, batch_size=32, shuffle=shuffle, num_workers=2,
-                          pin_memory=(device.type == 'cuda'))
+    def make_loader(indices, shuffle=False):
+        ds = MmapGestureDataset(raw_data, raw_labels, indices)
+        return DataLoader(ds, batch_size=32, shuffle=shuffle, num_workers=0)
 
-    train_loader = make_loader(split['X_train'], split['y_train'], shuffle=True)
-    val_loader   = make_loader(split['X_val'],   split['y_val'])
-    test_loader  = make_loader(split['X_test'],  split['y_test'])
+    train_loader = make_loader(train_idx, shuffle=True)
+    val_loader   = make_loader(val_idx)
+    test_loader  = make_loader(test_idx)
 
     # == model / optimiser / loss ==============================================
     model     = HistogramCNN().to(device)
-    criterion = nn.CrossEntropyLoss()
+    class_counts = np.array([
+    np.sum(raw_labels[train_idx] == 0),  # rock
+    np.sum(raw_labels[train_idx] == 1),  # paper
+    np.sum(raw_labels[train_idx] == 2),  # scissor
+    ])
+    print(f"Train class counts: rock={class_counts[0]}, paper={class_counts[1]}, scissor={class_counts[2]}")
+    class_weights = torch.FloatTensor(1.0 / class_counts)
+    class_weights = class_weights / class_weights.sum()
+    criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=0.001)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer, mode='max', factor=0.5, patience=3)
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model parameters: {total_params:,}\n")
 
-    # == training loop with early stopping ====================================
-    MAX_EPOCHS   = 50
-    PATIENCE     = 10   # epochs without val-acc improvement --> stop
+    # == training loop =========================================================
+    MAX_EPOCHS = 50
+    PATIENCE   = 10
 
     best_val_acc      = 0.0
     epochs_no_improve = 0
@@ -135,6 +164,7 @@ if __name__ == "__main__":
     for epoch in range(1, MAX_EPOCHS + 1):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         val_loss,   val_acc   = evaluate(model, val_loader, criterion, device)
+        scheduler.step(val_acc)
 
         print(f"Epoch {epoch}/{MAX_EPOCHS}")
         print(f"  Train : loss={train_loss:.4f}  acc={train_acc:.2f}%")
@@ -149,12 +179,11 @@ if __name__ == "__main__":
             epochs_no_improve += 1
             print(f"  No improvement ({epochs_no_improve}/{PATIENCE})")
             if epochs_no_improve >= PATIENCE:
-                print(f"\nEarly stopping at epoch {epoch} "
-                      f"(no improvement for {PATIENCE} epochs)")
+                print(f"\nEarly stopping at epoch {epoch}")
                 break
         print()
 
-    # == final test evaluation (load best weights) ============================
+    # == final test evaluation =================================================
     print("=" * 50)
     print("Final Evaluation on Test Set")
     print("=" * 50)
@@ -163,7 +192,7 @@ if __name__ == "__main__":
     print(f"\nTest  : loss={test_loss:.4f}  acc={test_acc:.2f}%")
     print(f"Best val acc: {best_val_acc:.2f}%")
 
-    # == save metrics =========================================================
+    # == save metrics ==========================================================
     metrics_path = SLIDING_DIR_T7 / 'histogram_training_metrics.txt'
     with open(metrics_path, 'w') as f:
         f.write(f"Best validation accuracy : {best_val_acc:.2f}%\n")

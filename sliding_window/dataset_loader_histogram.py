@@ -30,7 +30,7 @@ class HistogramDataset:
                     f"Run extract_samples_histogram.py first."
                 )
 
-        data        = np.load(data_path)
+        data        = np.load(data_path, mmap_mode='r')
         labels      = np.load(labels_path)
         recording_ids = np.load(recids_path)
 
@@ -97,24 +97,16 @@ class HistogramDataset:
         val_mask   = mask_for(recs_val)
         test_mask  = mask_for(recs_test)
 
-        X_train, y_train = data[train_mask], labels[train_mask]
-        X_val,   y_val   = data[val_mask],   labels[val_mask]
-        X_test,  y_test  = data[test_mask],  labels[test_mask]
+        n_train = int(np.sum(train_mask))
+        n_val   = int(np.sum(val_mask))
+        n_test  = int(np.sum(test_mask))
 
         print(f"\nRecording-level split:")
-        print(f"  train: {len(recs_train)} recordings -> {len(X_train)} samples")
-        print(f"  val:   {len(recs_val)}   recordings -> {len(X_val)} samples")
-        print(f"  test:  {len(recs_test)}  recordings -> {len(X_test)} samples")
-
-        for split_name, y in [('train', y_train), ('val', y_val), ('test', y_test)]:
-            counts = {LABEL_TO_GESTURE[i]: int(np.sum(y == i)) for i in range(3)}
-            print(f"  {split_name} class dist: {counts}")
+        print(f"  train: {len(recs_train)} recordings -> {n_train} samples")
+        print(f"  val:   {len(recs_val)}   recordings -> {n_val} samples")
+        print(f"  test:  {len(recs_test)}  recordings -> {n_test} samples")
 
         return {
-            'X_train': X_train, 'y_train': y_train,
-            'X_val':   X_val,   'y_val':   y_val,
-            'X_test':  X_test,  'y_test':  y_test,
-            # expose recording sets for reference / test-set evaluation
             'recs_train': recs_train,
             'recs_val':   recs_val,
             'recs_test':  recs_test,
