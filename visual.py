@@ -88,7 +88,7 @@ if __name__ == "__main__":
     print(f"Events in range: {len(events):,}")
 
     # use first full window
-    window = events[:WINDOW_SIZE]
+    window = events
     print(f"Window: {len(window):,} events\n")
 
     # ── plot ──────────────────────────────────────────────────────────────────
