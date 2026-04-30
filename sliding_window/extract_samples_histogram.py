@@ -8,12 +8,12 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 # == configs =====================================================================
 WINDOW_SIZE_EVENTS = 20_000
-STRIDE_EVENTS      = 4_000
+STRIDE_EVENTS      = 10_000 #4_000 before
 SENSOR_HEIGHT = 360
 SENSOR_WIDTH  = 640
 EXTRACTION_RANGE_US = 300_000   # 300 ms in microseconds
 BATCH_SIZE         = 500        # samples per batch file
-MAX_RECORDINGS_PER_GESTURE = 320
+MAX_RECORDINGS_PER_GESTURE = 270 # 320 before
 
 # == paths =====================================================================
 RECORDINGS_DIR = Path(os.getenv("RECORDINGS_DIR"))
