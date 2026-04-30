@@ -22,7 +22,7 @@ DIR            = os.getenv("DIR")
 
 # ── pick one recording to visualize ──────────────────────────────────────────
 # change this to any recording you want to inspect
-GESTURE   = "rock"
+GESTURE   = "paper"
 REC_INDEX = 1
 PREFIX    = GESTURE[0]
 
