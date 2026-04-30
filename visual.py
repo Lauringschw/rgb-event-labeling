@@ -85,6 +85,8 @@ if __name__ == "__main__":
     print(f"Loading: {folder}")
 
     events = load_events(folder)
+    print(f"x range: {events['x'].min()} to {events['x'].max()}")
+    print(f"y range: {events['y'].min()} to {events['y'].max()}")
     print(f"Events in range: {len(events):,}")
 
     # use first full window
