@@ -29,7 +29,12 @@ class MmapGestureDataset(Dataset):
 
     def __getitem__(self, idx):
         i = self.indices[idx]
-        x = torch.from_numpy(self.data[i].copy())  # copy() needed for mmap
+        x = self.data[i].copy().astype(np.float32)
+        # normalize: divide by max value if non-zero
+        max_val = x.max()
+        if max_val > 0:
+            x = x / max_val
+        x = torch.from_numpy(x)
         y = int(self.labels[i])
         return x, y
 
@@ -130,6 +135,14 @@ if __name__ == "__main__":
     train_loader = make_loader(train_idx, shuffle=True)
     val_loader   = make_loader(val_idx)
     test_loader  = make_loader(test_idx)
+    
+    # == debug: check first batch ==============================================
+    print("\nDebug — checking first batch...")
+    X_debug, y_debug = next(iter(train_loader))
+    print(f"  Input shape : {X_debug.shape}")
+    print(f"  Input min   : {X_debug.min():.4f}  max: {X_debug.max():.4f}")
+    print(f"  Labels      : {y_debug.numpy()}")
+    print(f"  Non-zero pixels: {(X_debug != 0).float().mean():.4f}")
 
     # == model / optimiser / loss ==============================================
     model     = HistogramCNN().to(device)
@@ -140,7 +153,7 @@ if __name__ == "__main__":
     ])
     print(f"Train class counts: rock={class_counts[0]}, paper={class_counts[1]}, scissor={class_counts[2]}")
     class_weights = torch.FloatTensor(1.0 / class_counts)
-    class_weights = class_weights / class_weights.sum()
+    class_weights = class_weights * len(class_counts)  # scale to keep loss magnitude
     criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
