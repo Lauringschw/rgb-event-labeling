@@ -9,8 +9,8 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 # == configs =====================================================================
 WINDOW_SIZE_EVENTS = 20_000
 STRIDE_EVENTS      = 4_000
-SENSOR_HEIGHT      = 720
-SENSOR_WIDTH       = 1280
+SENSOR_HEIGHT = 360
+SENSOR_WIDTH  = 640
 EXTRACTION_RANGE_US = 300_000   # 300 ms in microseconds
 BATCH_SIZE         = 500        # samples per batch file
 MAX_RECORDINGS_PER_GESTURE = 320
@@ -26,25 +26,24 @@ GESTURE_TO_LABEL = {'rock': 0, 'paper': 1, 'scissor': 2}
 
 # == representation ============================================================
 
-def events_to_histogram(events, height=SENSOR_HEIGHT, width=SENSOR_WIDTH):
-    """2-channel (ON/OFF) 2D histogram. Vectorised"""
+def events_to_histogram(events, height=SENSOR_HEIGHT, width=SENSOR_WIDTH,
+                        orig_height=720, orig_width=1280):
     histogram = np.zeros((2, height, width), dtype=np.float32)
     if len(events) == 0:
         return histogram
 
-    valid = (
-        (events['x'] >= 0) & (events['x'] < width) &
-        (events['y'] >= 0) & (events['y'] < height)
-    )
-    events = events[valid]
-    if len(events) == 0:
-        return histogram
+    x = (events['x'] * width  // orig_width).astype(np.int32)
+    y = (events['y'] * height // orig_height).astype(np.int32)
 
-    on_mask  = events['p'] == 1
+    valid = (x >= 0) & (x < width) & (y >= 0) & (y < height)
+    x, y = x[valid], y[valid]
+    p    = events['p'][valid]
+
+    on_mask  = p == 1
     off_mask = ~on_mask
 
-    np.add.at(histogram[0], (events['y'][on_mask],  events['x'][on_mask]),  1)
-    np.add.at(histogram[1], (events['y'][off_mask], events['x'][off_mask]), 1)
+    np.add.at(histogram[0], (y[on_mask],  x[on_mask]),  1)
+    np.add.at(histogram[1], (y[off_mask], x[off_mask]), 1)
     return histogram
 
 

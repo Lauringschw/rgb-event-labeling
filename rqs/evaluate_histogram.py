@@ -37,7 +37,7 @@ class HistogramCNN(nn.Module):
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(128 * 90 * 160, 256),
+            nn.Linear(128 * 45 * 80, 256),
             nn.ReLU(),
             nn.Dropout(0.5),
             nn.Linear(256, 3),
