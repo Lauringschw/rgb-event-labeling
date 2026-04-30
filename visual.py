@@ -33,8 +33,8 @@ RESOLUTIONS = [
     (90,  160,  "Eighth res\n90×160"),
 ]
 
-ORIG_H = 720
-ORIG_W = 1280
+ORIG_H = 1280
+ORIG_W = 720
 
 WINDOW_SIZE = 20_000   # events per window
 EXTRACTION_RANGE_US = 300_000
