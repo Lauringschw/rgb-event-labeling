@@ -32,8 +32,8 @@ def events_to_histogram(events, height=SENSOR_HEIGHT, width=SENSOR_WIDTH,
     if len(events) == 0:
         return histogram
 
-    x = (events['x'] * width  // orig_width).astype(np.int32)
-    y = (events['y'] * height // orig_height).astype(np.int32)
+    x = (events['x'].astype(np.int32) * width  // orig_width)
+    y = (events['y'].astype(np.int32) * height // orig_height)
 
     valid = (x >= 0) & (x < width) & (y >= 0) & (y < height)
     x, y = x[valid], y[valid]
