@@ -22,7 +22,7 @@ SENSOR_HEIGHT = 360
 SENSOR_WIDTH  = 640
 
 # == recording config ==========================================================
-MAX_RECORDINGS_PER_GESTURE = 270 
+MAX_RECORDINGS_PER_GESTURE = 400 
 
 # == RQ configs ================================================================
 RQ1_DURATIONS_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
