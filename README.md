@@ -4,6 +4,8 @@ Dataset creation pipeline for synchronized RGB + event camera gesture recordings
 
 **Hardware:** Basler a2A1920-160ucPRO (~140 fps) + Prophesee EVK4 HD, hardware-synchronized via TTL trigger wire (Basler Line2 → Prophesee external trigger input).
 
+> Training and evaluation code: [rgb-event-training](https://github.com/Lauringschw/rgb-event-training)
+
 ---
 
 ## Pipeline
