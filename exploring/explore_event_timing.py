@@ -1,7 +1,3 @@
-"""
-Exploratory analysis: visualize event distribution over time to find optimal t_initial offset and window length
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
@@ -238,7 +234,7 @@ if __name__ == '__main__':
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 fig.savefig(output_path, dpi=150, bbox_inches='tight')
                 plt.close(fig)
-                print(f"  ✓ {gesture}/{folder.name}")
+                print(f"  => {gesture}/{folder.name}")
     
     print("\n" + "="*60)
     print(f"Analysis complete. Check {output_base}/ folder")
