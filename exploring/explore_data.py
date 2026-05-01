@@ -1,14 +1,3 @@
-"""
-Exploratory visualizations for thesis presentation.
-
-Produces three figures:
-  1. event_density_over_time.png  — avg event count per 10ms bin from GO, per gesture
-  2. gesture_window_grid.png      — gesture x window length histogram grid
-  3. offset_window_heatmap.png    — avg event count heatmap: offset x window length
-
-Output: EXPLORATION_DIR (set in .env)
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 from metavision_core.event_io import EventsIterator
@@ -20,9 +9,9 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 GESTURES          = ["rock", "paper", "scissor"]
 COLORS            = {'rock': '#e74c3c', 'paper': '#3498db', 'scissor': '#2ecc71'}
-N_SAMPLES_DENSITY = 5  # averaged over recordings — position doesn't matter
-N_SAMPLES_GRID    = 1  # single recording per gesture — no averaging
-N_SAMPLES_HEATMAP = 5  # averaged over recordings — position doesn't matter
+N_SAMPLES_DENSITY = 5  # averaged over recordings
+N_SAMPLES_GRID    = 1  # single recording per gesture --> no averaging
+N_SAMPLES_HEATMAP = 5  # averaged over recordings
 
 
 def load_labels(folder: Path):
@@ -126,7 +115,7 @@ def figure_event_density(base: Path, output_dir: Path):
     out = output_dir / 'event_density_over_time.png'
     fig.savefig(out, dpi=150, bbox_inches='tight')
     plt.close(fig)
-    print(f'  ✓ {out.name}')
+    print(f'  - {out.name}')
 
 
 def figure_gesture_window_grid(base: Path, output_dir: Path):
@@ -177,7 +166,7 @@ def figure_gesture_window_grid(base: Path, output_dir: Path):
     out = output_dir / 'gesture_window_grid.png'
     fig.savefig(out, dpi=150, bbox_inches='tight')
     plt.close(fig)
-    print(f'  ✓ {out.name}')
+    print(f'  - {out.name}')
 
 
 def figure_offset_window_heatmap(base: Path, output_dir: Path):
@@ -232,7 +221,7 @@ def figure_offset_window_heatmap(base: Path, output_dir: Path):
     out = output_dir / 'offset_window_heatmap.png'
     fig.savefig(out, dpi=150, bbox_inches='tight')
     plt.close(fig)
-    print(f'  ✓ {out.name}')
+    print(f'  - {out.name}')
 
 
 if __name__ == '__main__':
@@ -248,16 +237,16 @@ if __name__ == '__main__':
     print(f'Grid: {N_SAMPLES_GRID} recording/gesture | Density & Heatmap: {N_SAMPLES_DENSITY} recordings/gesture')
     print()
 
-    print('Figure 1: event density over time...')
+    print('Figure 1: event density over time')
     figure_event_density(base, output_dir)
 
-    print('Figure 2: gesture × window grid...')
+    print('Figure 2: gesture × window grid')
     figure_gesture_window_grid(base, output_dir)
 
-    print('Figure 3: offset × window heatmap...')
+    print('Figure 3: offset × window heatmap')
     figure_offset_window_heatmap(base, output_dir)
 
     print()
     print('=' * 60)
-    print(f'Done. Figures saved to {output_dir}/')
+    print(f'Done --> Saved to {output_dir}/')
     print('=' * 60)

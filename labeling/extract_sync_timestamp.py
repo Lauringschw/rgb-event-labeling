@@ -7,30 +7,30 @@ import os
 load_dotenv(Path(__file__).parent.parent / '.env')
 
 def extract_trigger_timestamps(raw_path: Path) -> np.ndarray:
-    """Extract rising-edge external trigger timestamps from a RAW file."""
-    reader = RawReader(str(raw_path))
+    """Extract rising-edge external trigger timestamps from RAW file."""
+    reader = RawReader(str(raw_path)) # reading .raw files
     trigger_times = []
 
     try:
         while not reader.is_done():
-            reader.load_n_events(100000)
+            reader.load_n_events(100000) # read next 100,000 regular events into memory
             
-            triggers = reader.get_ext_trigger_events()
-            if len(triggers) > 0:
-                # only rising edges (p == 1)
-                trigger_times.extend(t["t"] for t in triggers if t["p"] == 1)
-                reader.clear_ext_trigger_events()
+            triggers = reader.get_ext_trigger_events() # gets the external triggers
+            if len(triggers) > 0: # external triggers exist
+                # stores only rising edges (p == 1) into array
+                trigger_times.extend(t["t"] for t in triggers if t["p"] == 1) # stores µs timestamps of each rising-edge trigger pulse
+                reader.clear_ext_trigger_events() # clears memory for next 100,000
     finally:
         reader.reset()
 
     if not trigger_times:
         raise ValueError("No rising-edge external trigger events found in RAW file")
 
-    # removes duplicate and sort ==> SDK duplicate bug
+    # remove duplicate and sort by trigger time ==> SDK duplicate bug
     trigger_times = np.array(sorted(set(trigger_times)), dtype=np.int64)
 
     # 1 trigger = 1 frame
-    duration_s = (trigger_times[-1] - trigger_times[0]) / 1e6 # duration = last - first
+    duration_s = (trigger_times[-1] - trigger_times[0]) / 1e6 # duration in seconds = last - first
     fps = (len(trigger_times) - 1) / duration_s # fps = # of frames / duration
     
     print(f"  Total triggers: {len(trigger_times)}")
