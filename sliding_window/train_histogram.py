@@ -156,9 +156,9 @@ if __name__ == "__main__":
     class_weights = torch.FloatTensor(1.0 / class_counts)
     class_weights = class_weights * len(class_counts)  # scale to keep loss magnitude
     criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
-    optimizer = optim.Adam(model.parameters(), lr=0.0001)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-    optimizer, mode='max', factor=0.5, patience=3)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+    optimizer, T_max=50, eta_min=1e-6)
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model parameters: {total_params:,}\n")
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     for epoch in range(1, MAX_EPOCHS + 1):
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
         val_loss,   val_acc   = evaluate(model, val_loader, criterion, device)
-        scheduler.step(val_acc)
+        scheduler.step()
 
         print(f"Epoch {epoch}/{MAX_EPOCHS}")
         print(f"  Train : loss={train_loss:.4f}  acc={train_acc:.2f}%")
