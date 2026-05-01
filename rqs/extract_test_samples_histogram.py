@@ -18,8 +18,8 @@ TEST_DIR       = Path(os.getenv("TEST_DIR", str(SLIDING_DIR / "test_samples")))
 TEST_DIR.mkdir(parents=True, exist_ok=True)
 
 # == sensor config =============================================================
-SENSOR_HEIGHT = 720
-SENSOR_WIDTH  = 1280
+SENSOR_HEIGHT = 360
+SENSOR_WIDTH  = 640
 
 # == RQ configs ================================================================
 RQ1_DURATIONS_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
@@ -31,22 +31,23 @@ GESTURE_TO_LABEL = {'rock': 0, 'paper': 1, 'scissor': 2}
 
 # == representation ============================================================
 
-def events_to_histogram(events, height=SENSOR_HEIGHT, width=SENSOR_WIDTH):
-    """Vectorised 2-channel (ON/OFF) 2D histogram."""
+def events_to_histogram(events, height=SENSOR_HEIGHT, width=SENSOR_WIDTH,
+                        orig_height=720, orig_width=1280):
     histogram = np.zeros((2, height, width), dtype=np.float32)
     if len(events) == 0:
         return histogram
-    valid = (
-        (events['x'] >= 0) & (events['x'] < width) &
-        (events['y'] >= 0) & (events['y'] < height)
-    )
-    events = events[valid]
-    if len(events) == 0:
-        return histogram
-    on_mask  = events['p'] == 1
+
+    x = (events['x'].astype(np.int32) * width  // orig_width)
+    y = (events['y'].astype(np.int32) * height // orig_height)
+
+    valid = (x >= 0) & (x < width) & (y >= 0) & (y < height)
+    x, y = x[valid], y[valid]
+    p    = events['p'][valid]
+
+    on_mask  = p == 1
     off_mask = ~on_mask
-    np.add.at(histogram[0], (events['y'][on_mask],  events['x'][on_mask]),  1)
-    np.add.at(histogram[1], (events['y'][off_mask], events['x'][off_mask]), 1)
+    np.add.at(histogram[0], (y[on_mask],  x[on_mask]),  1)
+    np.add.at(histogram[1], (y[off_mask], x[off_mask]), 1)
     return histogram
 
 

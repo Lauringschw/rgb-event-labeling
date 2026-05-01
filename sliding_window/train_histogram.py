@@ -121,7 +121,7 @@ if __name__ == "__main__":
     val_mask   = np.isin(recording_ids, split['recs_val'])
     test_mask  = np.isin(recording_ids, split['recs_test'])
 
-    train_idx = np.where(train_mask)[0]
+    train_idx = np.sort(np.where(train_mask)[0])  # sequential disk reads
     val_idx   = np.where(val_mask)[0]
     test_idx  = np.where(test_mask)[0]
 
