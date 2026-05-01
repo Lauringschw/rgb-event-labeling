@@ -1,3 +1,14 @@
+"""
+Exploratory visualizations for thesis presentation.
+
+Produces three figures:
+  1. event_density_over_time.png  — avg event count per 10ms bin from GO, per gesture
+  2. gesture_window_grid.png      — gesture x window length histogram grid
+  3. offset_window_heatmap.png    — avg event count heatmap: offset x window length
+
+Output: EXPLORATION_DIR (set in .env)
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from metavision_core.event_io import EventsIterator
@@ -7,9 +18,11 @@ import os
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
-GESTURES   = ['rock', 'paper', 'scissor']
-COLORS     = {'rock': '#e74c3c', 'paper': '#3498db', 'scissor': '#2ecc71'}
-N_SAMPLES  = 5   # recordings per gesture to average over
+GESTURES          = ["rock", "paper", "scissor"]
+COLORS            = {'rock': '#e74c3c', 'paper': '#3498db', 'scissor': '#2ecc71'}
+N_SAMPLES_DENSITY = 5  # averaged over recordings — position doesn't matter
+N_SAMPLES_GRID    = 1  # single recording per gesture — no averaging
+N_SAMPLES_HEATMAP = 5  # averaged over recordings — position doesn't matter
 
 
 def load_labels(folder: Path):
@@ -56,7 +69,7 @@ def figure_event_density(base: Path, output_dir: Path):
     fig, ax = plt.subplots(figsize=(10, 5))
 
     for gesture in GESTURES:
-        folders = get_recordings(base / gesture, N_SAMPLES)
+        folders = get_recordings(base / gesture, N_SAMPLES_DENSITY)
         all_counts   = []
         t_initials   = []
 
@@ -117,47 +130,32 @@ def figure_event_density(base: Path, output_dir: Path):
 
 
 def figure_gesture_window_grid(base: Path, output_dir: Path):
-    WINDOWS_MS = [50, 100, 150, 200]
+    WINDOWS_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
     fig, axes = plt.subplots(len(GESTURES), len(WINDOWS_MS),
-                             figsize=(4 * len(WINDOWS_MS), 4 * len(GESTURES)))
+                             figsize=(3 * len(WINDOWS_MS), 3.5 * len(GESTURES)))
 
     for row, gesture in enumerate(GESTURES):
-        folders = get_recordings(base / gesture, N_SAMPLES)
+        folders = get_recordings(base / gesture, N_SAMPLES_GRID)
+        folder  = folders[0] if folders else None
+
+        labels = load_labels(folder) if folder else None
+        events = load_events(folder) if folder else None
 
         for col, window_ms in enumerate(WINDOWS_MS):
-            ax    = axes[row, col]
-            stack = []
+            ax = axes[row, col]
 
-            for folder in folders:
-                labels = load_labels(folder)
-                if labels is None:
-                    continue
-                events = load_events(folder)
-                if events is None:
-                    continue
-
+            if labels is not None and events is not None:
                 t0   = labels['t_initial_time_us']
                 mask = (events['t'] >= t0) & (events['t'] < t0 + window_ms * 1000)
                 ev   = events[mask]
-                if len(ev) == 0:
-                    continue
-
-                stack.append(to_histogram(ev))
-
-            if stack:
-                avg_frame   = np.mean(stack, axis=0)
-                event_count = int(np.mean([
-                    np.sum((load_events(f)['t'] >= load_labels(f)['t_initial_time_us']) &
-                           (load_events(f)['t'] <  load_labels(f)['t_initial_time_us'] + window_ms * 1000))
-                    for f in folders
-                    if load_labels(f) is not None and load_events(f) is not None
-                ]))
+                frame       = to_histogram(ev) if len(ev) > 0 else np.zeros((720, 1280), dtype=np.float32)
+                event_count = len(ev)
             else:
-                avg_frame   = np.zeros((720, 1280), dtype=np.float32)
+                frame       = np.zeros((720, 1280), dtype=np.float32)
                 event_count = 0
 
-            im = ax.imshow(avg_frame, cmap='hot', vmin=0, vmax=1, aspect='auto')
+            im = ax.imshow(frame, cmap='hot', vmin=0, vmax=1, aspect='auto')
             ax.axis('off')
 
             ax.text(0.02, 0.02, f'~{event_count:,} events',
@@ -171,8 +169,7 @@ def figure_gesture_window_grid(base: Path, output_dir: Path):
             if col == 0:
                 ax.set_ylabel(gesture.capitalize(), fontsize=13,
                               fontweight='bold', rotation=0, labelpad=50)
-            if col == len(WINDOWS_MS) - 1:
-                plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    fig.colorbar(im, ax=axes[:, -1], label='Normalised intensity', shrink=0.6)
 
     fig.suptitle('Event Histograms: Gesture × Window Length (anchored at t_initial)',
                  fontsize=14, fontweight='bold')
@@ -192,7 +189,7 @@ def figure_offset_window_heatmap(base: Path, output_dir: Path):
 
     for idx, gesture in enumerate(GESTURES):
         ax      = axes[idx]
-        folders = get_recordings(base / gesture, N_SAMPLES)
+        folders = get_recordings(base / gesture, N_SAMPLES_HEATMAP)
         matrix  = np.zeros((len(OFFSETS_MS), len(WINDOWS_MS)), dtype=np.float32)
 
         for folder in folders:
@@ -248,7 +245,7 @@ if __name__ == '__main__':
     print('=' * 60)
     print(f'Input:   {base}')
     print(f'Output:  {output_dir}')
-    print(f'Samples: {N_SAMPLES} recordings per gesture')
+    print(f'Grid: {N_SAMPLES_GRID} recording/gesture | Density & Heatmap: {N_SAMPLES_DENSITY} recordings/gesture')
     print()
 
     print('Figure 1: event density over time...')

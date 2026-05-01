@@ -24,7 +24,7 @@ Prints trigger count, duration, and FPS per recording as a sanity check.
 
 ## 2. label_tool.py
 
-![Recording GUI](/images/label.png)
+![Labeling GUI](/images/label.png)
 
 Matplotlib GUI for marking two temporal landmarks per recording:
 
