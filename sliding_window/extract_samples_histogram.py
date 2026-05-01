@@ -8,7 +8,7 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 # == configs =====================================================================
 WINDOW_SIZE_EVENTS = 20_000
-STRIDE_EVENTS      = 10_000 #4_000 before
+STRIDE_EVENTS      = 4_000
 SENSOR_HEIGHT = 360
 SENSOR_WIDTH  = 640
 EXTRACTION_RANGE_US = 300_000   # 300 ms in microseconds
@@ -122,46 +122,6 @@ def save_batch(batch_samples, batch_labels, batch_rec_ids, batch_num):
     np.save(SLIDING_DIR / f"histogram_recids_batch_{batch_num}.npy",
             np.array(batch_rec_ids, dtype=np.int64))
     print(f"  [batch {batch_num}] saved {len(batch_samples)} samples")
-
-
-def merge_batches():
-    """Concatenate all batch files -> final dataset files, then delete batches."""
-    print("\nMerging batches ")
-
-    data_files   = sorted(SLIDING_DIR.glob("histogram_data_batch_*.npy"),
-                          key=lambda p: int(p.stem.split('_')[-1]))
-    label_files  = sorted(SLIDING_DIR.glob("histogram_labels_batch_*.npy"),
-                          key=lambda p: int(p.stem.split('_')[-1]))
-    recid_files  = sorted(SLIDING_DIR.glob("histogram_recids_batch_*.npy"),
-                          key=lambda p: int(p.stem.split('_')[-1]))
-
-    if not data_files:
-        print("No batch files found — nothing to merge.")
-        return
-
-    all_data   = [np.load(f) for f in data_files]
-    all_labels = [np.load(f) for f in label_files]
-    all_recids = [np.load(f) for f in recid_files]
-
-    final_data   = np.concatenate(all_data)
-    final_labels = np.concatenate(all_labels)
-    final_recids = np.concatenate(all_recids)
-
-    np.save(SLIDING_DIR / "histogram_data.npy",         final_data)
-    np.save(SLIDING_DIR / "histogram_labels.npy",       final_labels)
-    np.save(SLIDING_DIR / "histogram_recording_ids.npy", final_recids)
-
-    print(f"Final dataset: {len(final_data)} samples")
-    print(f"  rock:    {np.sum(final_labels == 0)}")
-    print(f"  paper:   {np.sum(final_labels == 1)}")
-    print(f"  scissor: {np.sum(final_labels == 2)}")
-    print(f"Saved to {SLIDING_DIR}")
-
-    # clean up
-    for f in data_files + label_files + recid_files:
-        f.unlink()
-    print("Batch files deleted.")
-
 
 # == main ======================================================================
 
