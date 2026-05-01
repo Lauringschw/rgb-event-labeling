@@ -156,7 +156,7 @@ if __name__ == "__main__":
     class_weights = torch.FloatTensor(1.0 / class_counts)
     class_weights = class_weights * len(class_counts)  # scale to keep loss magnitude
     criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer, T_max=50, eta_min=1e-6)
 
