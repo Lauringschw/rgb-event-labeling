@@ -1,74 +1,60 @@
-# Dual Camera Recording (GUI)
+# recording/
 
-This folder documents the GUI workflow for recording synchronized data from:
+Scripts for synchronized dual-camera data collection (Basler RGB + Prophesee EVK4 HD).
 
-1. Basler RGB camera
-2. Prophesee event camera
+## GUI
 
-Primary script: record_dual_camera_gui.py
+![Recording GUI](/images/label.png)
 
-## What the GUI does
-
-1. Lets you choose gesture type and recording number.
-2. Shows where the next recording will be saved.
-3. Captures one calibration frame first.
-4. Starts synchronized recording for both cameras.
-5. Runs a visible countdown (3, 2, 1, GO).
-6. Automatically stops and saves recording outputs.
-7. Increments the recording number for the next take.
-
-## Recording flow
-
-1. Single Shot
-   1. Capture one calibration image for the selected recording folder.
-2. Start Recording
-   1. Start event recording and RGB frame capture.
-   2. Run countdown and GO sequence.
-   3. Continue briefly after GO and stop automatically.
-3. Optional manual stop
-   1. You can stop early with Stop Recording.
-
-## Saved outputs
-
-Each recording is saved under:
-
-`gesture/prefix_index`
-
-Example:
-
-`rock/r_1`
-
-Typical files:
-
-1. calibration_frame.raw
-2. Basler_acA1920-155um\_\_\*.raw
-3. prophesee_events.raw
-4. basler_frame_timestamps.npy
-5. recording_metadata.npy
-
-## Metadata summary
-
-recording_metadata.npy stores high-level timing information for later labeling, including:
-
-1. recording start and end timing
-2. GO timing offset
-3. estimated GO frame index
-4. total number of captured frames
-
-## Quick start
-
-1. Connect both cameras.
-2. Run:
+## Usage
 
 ```bash
-python record_dual_camera_gui.py
+python3 record_dual_camera_gui.py
 ```
 
-3. In the GUI:
-   1. Select gesture and recording number.
-   2. Click Single Shot.
-   3. Click Start Recording.
+Set gesture, distance, and recording number in the GUI, then click **Capture & Record**.
 
-## Setup Recording
+## Sequence
 
-<img src="/images/recording.gif" alt="Recording setup" width="300">
+1. Captures a single calibration frame (`calibration_frame.raw`)
+2. Initializes Prophesee — starts logging events to `prophesee_events.raw` immediately
+3. Runs a 3 → 2 countdown; Basler starts grabbing at "1"
+4. Shows **GO** cue — participant performs gesture
+5. Records for ~1s after GO, then stops both cameras
+6. Saves Basler frames, timestamps, and metadata
+
+## Output per recording
+
+```
+<gesture>/<prefix>_<n>/
+├── prophesee_events.raw          # raw event stream (Prophesee clock, µs)
+├── Basler_acA1920-155um__0.raw   # frame 0, 1920×1200 uint8 raw bytes
+├── Basler_acA1920-155um__1.raw
+├── ...
+├── calibration_frame.raw         # single pre-recording frame
+├── basler_frame_timestamps.npy   # Basler hardware timestamps (overwritten by extract_sync_timestamp.py)
+└── recording_metadata.npy        # GO timing, distance, frame count, expected_go_frame estimate
+```
+
+`recording_metadata.npy` keys: `go_timestamp_system`, `recording_start_time`, `go_offset_from_start`, `recording_end_time`, `distance`, `total_frames`, `expected_go_frame`.
+
+`expected_go_frame` is a rough estimate (`offset_s × 140`) used only as a jump hint in the labeling tool — not used for any downstream processing.
+
+## Hardware sync
+
+Basler Line2 is configured as `ExposureActive` output. Each exposure fires a rising-edge TTL pulse into the Prophesee external trigger input. These trigger timestamps (in Prophesee µs) are extracted in the next pipeline step to give a shared time base across both cameras.
+
+## Configuration
+
+Paths read from `.env` at the repo root:
+
+```dotenv
+RECORDINGS_DIR=/media/lau/T7/thesis/recordings   # storage root for all recordings
+DIR=trial2                                        # session subfolder; base path = RECORDINGS_DIR/DIR
+```
+
+Bias settings (`bias_diff_on`, `bias_diff_off`) are adjustable in the GUI. Camera settings (140 fps, 1920×1200) are loaded from Basler UserSet1.
+
+## Auto-capture
+
+Enable **Automatically do capture** to chain recordings back-to-back without clicking between takes.
