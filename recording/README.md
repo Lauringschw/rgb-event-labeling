@@ -4,7 +4,7 @@ Scripts for synchronized dual-camera data collection (Basler RGB + Prophesee EVK
 
 ## GUI
 
-![Recording GUI](/images/label.png)
+![Recording GUI](/images/recording.gif)
 
 ## Usage
 
