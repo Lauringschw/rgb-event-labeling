@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import os
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'sliding_window'))
 from dataset_loader_histogram import HistogramDataset
 
 load_dotenv(Path(__file__).parent.parent.parent / '.env')
