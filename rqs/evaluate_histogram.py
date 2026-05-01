@@ -60,17 +60,18 @@ def get_device():
 # == inference =================================================================
 
 def run_inference(model, data, device, batch_size=32):
-    """
-    Run model inference on data array.
-    Returns predicted labels as numpy array.
-    """
     model.eval()
-    dataset = TensorDataset(torch.FloatTensor(data))
-    loader  = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    preds   = []
+    preds = []
     with torch.no_grad():
-        for (X_batch,) in loader:
-            out = model(X_batch.to(device))
+        for i in range(0, len(data), batch_size):
+            batch = data[i:i+batch_size].copy().astype(np.float32)
+            # normalize each sample
+            for j in range(len(batch)):
+                max_val = batch[j].max()
+                if max_val > 0:
+                    batch[j] = batch[j] / max_val
+            X = torch.from_numpy(batch).to(device)
+            out = model(X)
             preds.append(out.argmax(1).cpu().numpy())
     return np.concatenate(preds)
 
