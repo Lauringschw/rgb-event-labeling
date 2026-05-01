@@ -21,6 +21,9 @@ TEST_DIR.mkdir(parents=True, exist_ok=True)
 SENSOR_HEIGHT = 360
 SENSOR_WIDTH  = 640
 
+# == recording config ==========================================================
+MAX_RECORDINGS_PER_GESTURE = 270 
+
 # == RQ configs ================================================================
 RQ1_DURATIONS_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 RQ2_OFFSETS_MS  = [0, 20, 40, 60, 80, 100]
@@ -124,13 +127,14 @@ def extract_rq1_rq2(test_rec_ids):
     for gesture in GESTURE_TO_LABEL:
         prefix = gesture[0]
         i = 1
-        while True:
+        while i <= MAX_RECORDINGS_PER_GESTURE:  # add this cap
             folder = base / gesture / f"{prefix}_{i}"
             if not folder.exists():
                 break
             rec_id_to_info[recording_id] = (gesture, folder)
             recording_id += 1
             i += 1
+
 
     print(f"\nTotal recordings mapped: {recording_id}")
     print(f"Test recordings: {len(test_rec_ids)}\n")
