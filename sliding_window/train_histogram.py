@@ -45,16 +45,17 @@ class HistogramCNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.features = nn.Sequential(
-            nn.Conv2d(2, 32, kernel_size=5, padding=2), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(2, 32, kernel_size=5, padding=2), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
         )
         self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(128 * 45 * 80, 256),
+            nn.AdaptiveAvgPool2d(1),  # global average pooling → (128, 1, 1)
+            nn.Flatten(),              # → (128,)
+            nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 3),
+            nn.Dropout(0.3),
+            nn.Linear(64, 3),
         )
 
     def forward(self, x):
@@ -155,7 +156,7 @@ if __name__ == "__main__":
     class_weights = torch.FloatTensor(1.0 / class_counts)
     class_weights = class_weights * len(class_counts)  # scale to keep loss magnitude
     criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode='max', factor=0.5, patience=3)
 
