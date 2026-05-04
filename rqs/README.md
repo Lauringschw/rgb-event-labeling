@@ -1,28 +1,29 @@
-# rqs/histogram
+# rqs
 
-Two scripts for evaluating the trained histogram CNN on all three research questions.
+Two scripts for extracting test samples and evaluating trained CNNs on all three research questions, for any event representation.
 
 ## Order of execution
 
 ```
-1. extract_test_samples_histogram.py
-2. evaluate_histogram.py
+1. extract_test_samples.py --repr <representation>
+2. evaluate.py --repr <representation>
 ```
+
+Supported representations: `histogram`, `voxel`, `timesurface`
 
 ---
 
-## extract_test_samples_histogram.py
+## extract_test_samples.py
 
 Extracts fixed-time-window test samples from raw recordings for RQ1 and RQ2.
 
 **Input**
 
 - Raw recordings from `RECORDINGS_DIR/DIR/`
-- `histogram_recording_ids.npy` from training (to derive test split)
+- `test_recording_ids.npy` from `OUTPUT_DIR/` (saved by extraction pipeline to define the split)
 
 **How test recordings are identified**
-Re-derives the recording-level split using the same seeds as training (42, 123)
-and 70/10/20 proportions. Guarantees zero overlap with training data.
+Loads the test recording IDs saved during training extraction. Guarantees zero overlap with training data.
 
 **RQ1 — Window Length Effect**
 For each test recording: 10 windows of varying duration starting at t_initial.
@@ -33,32 +34,34 @@ For each test recording: 6 windows of fixed 30ms duration at varying offsets fro
 Offsets: 0, 20, 40, 60, 80, 100 ms
 
 **RQ3**
-No extraction needed. evaluate_histogram.py reuses the RQ1 30ms window.
+No extra extraction needed. evaluate.py reuses the RQ1 30ms window.
 
-**Output** (saved to `TEST_DIR`)
+**Output** (saved to `OUTPUT_DIR/test_samples/<repr>/`)
 
 ```
-rq1_data.npy              float32  (N_test×10, 2, 720, 1280)
+rq1_data.npy              float32  (N_test×10, C, 360, 640)
 rq1_labels.npy            int64    (N_test×10,)
-rq1_durations_ms.npy      int64    (N_test×10,)   which duration each row is
+rq1_durations_ms.npy      int64    (N_test×10,)
 rq1_recording_ids.npy     int64    (N_test×10,)
 
-rq2_data.npy              float32  (N_test×6, 2, 720, 1280)
+rq2_data.npy              float32  (N_test×6, C, 360, 640)
 rq2_labels.npy            int64    (N_test×6,)
-rq2_offsets_ms.npy        int64    (N_test×6,)    which offset each row is
+rq2_offsets_ms.npy        int64    (N_test×6,)
 rq2_recording_ids.npy     int64    (N_test×6,)
 ```
 
+Where C = 2 (histogram), 5 (voxel), 1 (timesurface).
+
 ---
 
-## evaluate_histogram.py
+## evaluate.py
 
 Loads the trained model and test samples, runs inference, reports accuracy.
 
 **Input**
 
-- `model_histogram_best.pth` from `SLIDING_DIR_T7`
-- Test sample files from `TEST_DIR` (produced by extract script above)
+- Model weights from `OUTPUT_DIR/` — filename depends on representation
+- Test sample files from `OUTPUT_DIR/test_samples/<repr>/`
 
 **RQ1 output**
 Accuracy per window duration (10 values). Reported overall and per class.
@@ -67,23 +70,21 @@ Accuracy per window duration (10 values). Reported overall and per class.
 Accuracy per temporal offset (6 values). Reported overall and per class.
 
 **RQ3 output**
-Histogram accuracy at τ=0, Δt=30ms, sliced from RQ1 results.
-Saved separately for cross-representation comparison after voxel and
-time surface models are also evaluated.
+Accuracy at τ=0, Δt=30ms, sliced from RQ1 results. Saved for cross-representation comparison.
 
-**Output** (saved to `TEST_DIR/results/`)
+**Output** (saved to `OUTPUT_DIR/results/<repr>/`)
 
 ```
-rq1_accuracies.npy            float64  (10,)   one value per duration
-rq1_durations_ms.npy          int64    (10,)
-rq1_results.txt               human-readable table
+rq1_accuracies.npy              float64  (10,)
+rq1_durations_ms.npy            int64    (10,)
+rq1_results.txt
 
-rq2_accuracies.npy            float64  (6,)    one value per offset
-rq2_offsets_ms.npy            int64    (6,)
-rq2_results.txt               human-readable table
+rq2_accuracies.npy              float64  (6,)
+rq2_offsets_ms.npy              int64    (6,)
+rq2_results.txt
 
-rq3_histogram_acc_30ms.npy    float64  (1,)    for RQ3 comparison
-rq3_histogram_result.txt
+rq3_<repr>_acc_30ms.npy         float64  (1,)
+rq3_<repr>_result.txt
 ```
 
 ---
@@ -91,9 +92,7 @@ rq3_histogram_result.txt
 ## .env variables required
 
 ```
-RECORDINGS_DIR=   path to folder containing gesture subfolders
+RECORDINGS_DIR=   path to drive containing gesture recording folders
 DIR=              subfolder name e.g. trial2
-SLIDING_DIR=      where batch files and merged training data live
-SLIDING_DIR_T7=   where model weights are saved
-TEST_DIR=         where test samples and results are saved
+OUTPUT_DIR=       all outputs go here (train data, model weights, test samples, results)
 ```
