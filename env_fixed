@@ -1,0 +1,6 @@
+# Raw recordings (Seagate HDD — read only)
+RECORDINGS_DIR=/media/lau/seagate
+DIR=trial2
+
+# All outputs go here (T7 SSD)
+OUTPUT_DIR=/media/lau/T7/thesis/histogram_fixed
