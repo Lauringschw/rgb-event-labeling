@@ -7,7 +7,7 @@ import numpy as np
 import os
 from dotenv import load_dotenv
 
-from dataset_loader_timesurface import TimeSurfaceDataset
+from sliding_window.timesurface.dataset_loader_timesurface import TimeSurfaceDataset
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 

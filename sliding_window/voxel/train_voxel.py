@@ -7,7 +7,7 @@ import numpy as np
 import os
 from dotenv import load_dotenv
 
-from dataset_loader_voxel import VoxelDataset
+from sliding_window.voxel.dataset_loader_voxel import VoxelDataset
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 

@@ -7,7 +7,7 @@ import numpy as np
 import os
 from dotenv import load_dotenv
 
-from dataset_loader_histogram import HistogramDataset
+from sliding_window.histogram.dataset_loader_histogram import HistogramDataset
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
