@@ -58,5 +58,3 @@ DIR=trial2                                       # session subfolder; base path 
 RECORDINGS_DIR=/media/lau/T7/thesis/recordings   # where recording folders live
 EXPLORATION_DIR=/media/lau/T7/thesis/exploring   # where testing occurs
 ```
-
-`THESIS_DIR`, `BACKUP_DIR`, and `EXPLORATION_DIR` are not referenced by any script in this repo.
