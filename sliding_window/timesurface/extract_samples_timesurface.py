@@ -1,7 +1,7 @@
 from pathlib import Path
 import numpy as np
 from metavision_core.event_io import EventsIterator
-from metavision_sdk_core import EventPreprocessor
+from metavision_sdk_core import MostRecentTimestampBuffer
 from dotenv import load_dotenv
 import os
 
@@ -19,31 +19,32 @@ MAX_RECORDINGS_PER_GESTURE = 320
 # == paths =====================================================================
 RECORDINGS_DIR = Path(os.getenv("RECORDINGS_DIR"))
 DIR            = os.getenv("DIR")
-SLIDING_DIR    = Path(os.getenv("SLIDING_DIR_TIME"))  # NEW: separate output dir
+SLIDING_DIR    = Path(os.getenv("SLIDING_DIR_TIME_TS"))  # NEW: time surface output
 SLIDING_DIR.mkdir(parents=True, exist_ok=True)
 
 GESTURE_TO_LABEL = {'rock': 0, 'paper': 1, 'scissor': 2}
 
 
-# == representation using Metavision ===========================================
+# == representation using Metavision SDK ========================================
 
-def events_to_histogram_metavision(events, height=SENSOR_HEIGHT, width=SENSOR_WIDTH,
-                                   orig_height=720, orig_width=1280):
+def events_to_timesurface(events, height=SENSOR_HEIGHT, width=SENSOR_WIDTH,
+                          orig_height=720, orig_width=1280):
     """
-    Convert events to histogram using Metavision's optimized preprocessing.
-    Uses EventPreprocessor for downsampling and histogram generation.
+    Convert events to time surface using Metavision SDK's MostRecentTimestampBuffer.
+    Time surface = timestamp of most recent event at each pixel, normalized to [0,1].
     """
     if len(events) == 0:
-        return np.zeros((2, height, width), dtype=np.float32)
+        return np.zeros((1, height, width), dtype=np.float32)
 
     # Downsample coordinates
+    # CRITICAL: Cast to int32 BEFORE multiplication to avoid uint16 overflow
     x = (events['x'].astype(np.int32) * width  // orig_width)
     y = (events['y'].astype(np.int32) * height // orig_height)
     
     # Filter valid coordinates
     valid = (x >= 0) & (x < width) & (y >= 0) & (y < height)
     
-    # Create downsampled event array
+    # Create downsampled event array with proper dtype
     downsampled = np.zeros(np.sum(valid), dtype=[
         ('x', np.int16),
         ('y', np.int16),
@@ -56,16 +57,36 @@ def events_to_histogram_metavision(events, height=SENSOR_HEIGHT, width=SENSOR_WI
     downsampled['p'] = events['p'][valid]
     downsampled['t'] = events['t'][valid]
     
-    # Build histogram manually (Metavision's EventPreprocessor is for full pipelines)
-    histogram = np.zeros((2, height, width), dtype=np.float32)
+    if len(downsampled) == 0:
+        return np.zeros((1, height, width), dtype=np.float32)
     
-    on_mask  = downsampled['p'] == 1
-    off_mask = ~on_mask
+    # Use Metavision SDK's MostRecentTimestampBuffer for time surface
+    ts_buffer = MostRecentTimestampBuffer(height, width)
     
-    np.add.at(histogram[0], (downsampled['y'][on_mask],  downsampled['x'][on_mask]),  1)
-    np.add.at(histogram[1], (downsampled['y'][off_mask], downsampled['x'][off_mask]), 1)
+    # Generate time surface from events
+    ts_buffer.generate(downsampled)
     
-    return histogram
+    # Get numpy array: shape (height, width), dtype int64 (timestamps in microseconds)
+    time_surface = ts_buffer.numpy().copy()
+    
+    # Normalize to [0, 1]
+    # Subtract minimum timestamp (oldest event) and divide by range
+    t_min = downsampled['t'].min()
+    t_max = downsampled['t'].max()
+    
+    if t_max > t_min:
+        # Normalize: (t - t_min) / (t_max - t_min)
+        time_surface = (time_surface.astype(np.float32) - t_min) / (t_max - t_min)
+    else:
+        # All events at same timestamp
+        time_surface = np.ones_like(time_surface, dtype=np.float32)
+    
+    # Pixels with no events remain 0
+    mask = (time_surface > 0)
+    result = np.zeros((1, height, width), dtype=np.float32)
+    result[0][mask] = time_surface[mask]
+    
+    return result
 
 
 # == TIME-BASED sliding window =================================================
@@ -76,16 +97,12 @@ def extract_time_windows(events, t_start_us, t_end_us):
     Window duration: WINDOW_DURATION_US (50ms)
     Stride:          STRIDE_DURATION_US (25ms = 50% overlap)
     
-    Returns list of (2, H, W) histogram arrays.
+    Returns list of (1, H, W) time surface arrays.
     """
     samples = []
     
     if len(events) == 0:
         return samples
-    
-    # Temporal bounds
-    first_t = events['t'][0]
-    last_t  = events['t'][-1]
     
     # Sliding window over TIME (not event count)
     current_t = t_start_us
@@ -103,8 +120,8 @@ def extract_time_windows(events, t_start_us, t_end_us):
             current_t += STRIDE_DURATION_US
             continue
         
-        histogram = events_to_histogram_metavision(window_events)
-        samples.append(histogram)
+        time_surface = events_to_timesurface(window_events)
+        samples.append(time_surface)
         
         # Slide forward by stride
         current_t += STRIDE_DURATION_US
@@ -116,8 +133,8 @@ def extract_time_windows(events, t_start_us, t_end_us):
 
 def process_recording(folder: Path):
     """
-    Load a single recording, extract TIME-BASED sliding-window histogram samples.
-    Returns list of (2, H, W) arrays, or None on failure.
+    Load a single recording, extract TIME-BASED sliding-window time surface samples.
+    Returns list of (1, H, W) arrays, or None on failure.
     """
     labels_file = folder / "labels.npy"
     raw_file    = folder / "prophesee_events.raw"
@@ -132,7 +149,7 @@ def process_recording(folder: Path):
     t_start = t_initial
     t_end   = t_initial + EXTRACTION_RANGE_US
 
-    # Load all events
+    # Load all events using Metavision SDK
     mv_iterator = EventsIterator(str(raw_file))
     chunks = [ev for ev in mv_iterator]
     if not chunks:
@@ -162,11 +179,11 @@ def process_recording(folder: Path):
 # == batch helpers =============================================================
 
 def save_batch(batch_samples, batch_labels, batch_rec_ids, batch_num):
-    np.save(SLIDING_DIR / f"histogram_time_data_batch_{batch_num}.npy",
+    np.save(SLIDING_DIR / f"timesurface_time_data_batch_{batch_num}.npy",
             np.array(batch_samples, dtype=np.float32))
-    np.save(SLIDING_DIR / f"histogram_time_labels_batch_{batch_num}.npy",
+    np.save(SLIDING_DIR / f"timesurface_time_labels_batch_{batch_num}.npy",
             np.array(batch_labels, dtype=np.int64))
-    np.save(SLIDING_DIR / f"histogram_time_recids_batch_{batch_num}.npy",
+    np.save(SLIDING_DIR / f"timesurface_time_recids_batch_{batch_num}.npy",
             np.array(batch_rec_ids, dtype=np.int64))
     print(f"  [batch {batch_num}] saved {len(batch_samples)} samples")
 
@@ -188,7 +205,8 @@ if __name__ == "__main__":
     recording_id = 0
 
     print("=" * 60)
-    print("TIME-BASED EXTRACTION (50ms windows, 50% overlap)")
+    print("TIME SURFACE EXTRACTION (50ms windows, 50% overlap)")
+    print("Using Metavision SDK: MostRecentTimestampBuffer")
     print("=" * 60)
     print(f"Window duration : {WINDOW_DURATION_US / 1000:.1f} ms")
     print(f"Stride          : {STRIDE_DURATION_US / 1000:.1f} ms")
@@ -240,4 +258,4 @@ if __name__ == "__main__":
     print(f"Failed: {total_failed} recordings")
     
     print(f"Batches saved to: {SLIDING_DIR}")
-    print(f"Next step: run merge_histogram_time.py")
+    print(f"Next step: run merge_timesurface_time.py")

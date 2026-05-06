@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 import numpy as np
 from metavision_core.event_io import EventsIterator
+from metavision_sdk_core import MostRecentTimestampBuffer
 from dotenv import load_dotenv
 import os
 
@@ -28,6 +29,7 @@ GESTURE_TO_LABEL = {'rock': 0, 'paper': 1, 'scissor': 2}
 # == representations ===========================================================
 
 def to_histogram(events):
+    """2-channel histogram: [ON events, OFF events]"""
     out = np.zeros((2, SENSOR_HEIGHT, SENSOR_WIDTH), dtype=np.float32)
     if len(events) == 0:
         return out
@@ -41,6 +43,7 @@ def to_histogram(events):
 
 
 def to_voxel(events):
+    """5-bin voxel grid with polarity weighting"""
     out = np.zeros((N_BINS, SENSOR_HEIGHT, SENSOR_WIDTH), dtype=np.float32)
     if len(events) == 0:
         return out
@@ -61,20 +64,52 @@ def to_voxel(events):
 
 
 def to_timesurface(events):
+    """
+    Time surface using Metavision SDK's MostRecentTimestampBuffer.
+    Returns normalized timestamps [0,1] of most recent event per pixel.
+    """
     out = np.zeros((1, SENSOR_HEIGHT, SENSOR_WIDTH), dtype=np.float32)
     if len(events) == 0:
         return out
+    
+    # Downsample coordinates
     x = (events['x'].astype(np.int32) * SENSOR_WIDTH  // ORIG_WIDTH)
     y = (events['y'].astype(np.int32) * SENSOR_HEIGHT // ORIG_HEIGHT)
     v = (x >= 0) & (x < SENSOR_WIDTH) & (y >= 0) & (y < SENSOR_HEIGHT)
-    x, y = x[v], y[v]
-    t = events['t'][v].astype(np.float64)
-    if len(t) == 0:
+    
+    # Create downsampled event array
+    downsampled = np.zeros(np.sum(v), dtype=[
+        ('x', np.int16),
+        ('y', np.int16),
+        ('p', np.int16),
+        ('t', np.int64)
+    ])
+    downsampled['x'] = x[v]
+    downsampled['y'] = y[v]
+    downsampled['p'] = events['p'][v]
+    downsampled['t'] = events['t'][v]
+    
+    if len(downsampled) == 0:
         return out
-    t_min, t_max = t.min(), t.max()
-    t_norm = np.ones(len(t)) if t_max == t_min else (t - t_min) / (t_max - t_min)
-    order  = np.argsort(t)
-    out[0, y[order], x[order]] = t_norm[order].astype(np.float32)
+    
+    # Use Metavision SDK's MostRecentTimestampBuffer
+    ts_buffer = MostRecentTimestampBuffer(SENSOR_HEIGHT, SENSOR_WIDTH)
+    ts_buffer.generate(downsampled)
+    time_surface = ts_buffer.numpy().copy()
+    
+    # Normalize to [0, 1]
+    t_min = downsampled['t'].min()
+    t_max = downsampled['t'].max()
+    
+    if t_max > t_min:
+        time_surface = (time_surface.astype(np.float32) - t_min) / (t_max - t_min)
+    else:
+        time_surface = np.ones_like(time_surface, dtype=np.float32)
+    
+    # Pixels with no events remain 0
+    mask = (time_surface > 0)
+    out[0][mask] = time_surface[mask]
+    
     return out
 
 
@@ -136,13 +171,14 @@ if __name__ == "__main__":
 
     print("=" * 55)
     print(f"TEST EXTRACTION — {args.repr} (RQ1 + RQ2)")
+    print("Using Metavision SDK: MostRecentTimestampBuffer for time surfaces")
     print("=" * 55)
 
     test_ids_path = OUTPUT_DIR / "test_recording_ids.npy"
     if not test_ids_path.exists():
         raise FileNotFoundError(
             f"Missing: {test_ids_path}\n"
-            f"Run extract_samples_histogram_fixed.py first to generate split.")
+            f"Run extract_samples_histogram_time.py first to generate split.")
 
     test_rec_ids   = np.load(test_ids_path)
     rec_id_to_info = build_rec_id_map()
