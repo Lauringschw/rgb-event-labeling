@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 from sliding_window.histogram.dataset_loader_histogram import HistogramDataset
 
-load_dotenv(Path(__file__).parent.parent / '.env')
+load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 SLIDING_DIR_T7 = Path(os.getenv("SLIDING_DIR_T7"))
 SLIDING_DIR_T7.mkdir(parents=True, exist_ok=True)

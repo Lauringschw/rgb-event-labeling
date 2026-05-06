@@ -4,7 +4,7 @@ from metavision_core.event_io import EventsIterator
 from dotenv import load_dotenv
 import os
 
-load_dotenv(Path(__file__).parent.parent / '.env')
+load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 # == configs =====================================================================
 WINDOW_SIZE_EVENTS = 20_000
