@@ -6,18 +6,22 @@ from pathlib import Path
 import numpy as np
 import os
 from dotenv import load_dotenv
+from torchvision import models
 
-from sliding_window.timesurface.dataset_loader_timesurface import TimeSurfaceDataset
+from dataset_loader_histogram_time import HistogramTimeDataset
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
-SLIDING_DIR_T7 = Path(os.getenv("SLIDING_DIR_T7")) / "timesurface"
-SLIDING_DIR_T7.mkdir(parents=True, exist_ok=True)
+SLIDING_DIR_T7_TIME = Path(os.getenv("SLIDING_DIR_T7_TIME"))
+SLIDING_DIR_T7_TIME.mkdir(parents=True, exist_ok=True)
+
+USE_RESNET = True  # Toggle: True = ResNet-18, False = Custom CNN
 
 
 # == dataset ===================================================================
 
-class MmapTimeSurfaceDataset(Dataset):
+class MmapGestureDataset(Dataset):
+    """Reads samples one at a time from mmap'd array."""
     def __init__(self, data, labels, indices):
         self.data    = data
         self.labels  = labels
@@ -29,27 +33,25 @@ class MmapTimeSurfaceDataset(Dataset):
     def __getitem__(self, idx):
         i = self.indices[idx]
         x = self.data[i].copy().astype(np.float32)
-        # values already in [0, 1] — no normalization needed
-        # but normalize by max in case of numerical edge cases
+        
+        # Normalize
         max_val = x.max()
         if max_val > 0:
             x = x / max_val
+        
         x = torch.from_numpy(x)
         y = int(self.labels[i])
         return x, y
 
 
-# == model =====================================================================
+# == models ====================================================================
 
-class TimeSurfaceCNN(nn.Module):
-    """
-    Same architecture as HistogramCNN but C_in=1 (single-channel time surface).
-    After 3x MaxPool2d(2): 360->45, 640->80.
-    """
+class HistogramCNN(nn.Module):
+    """Original 3-conv + 2-FC CNN"""
     def __init__(self):
         super().__init__()
         self.features = nn.Sequential(
-            nn.Conv2d(1,  32, kernel_size=5, padding=2), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(2, 32, kernel_size=5, padding=2), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         )
@@ -63,6 +65,43 @@ class TimeSurfaceCNN(nn.Module):
 
     def forward(self, x):
         return self.classifier(self.features(x))
+
+
+class ResNet18Histogram(nn.Module):
+    """ResNet-18 adapted for 2-channel histogram input"""
+    def __init__(self, num_classes=3, pretrained=False):
+        super().__init__()
+        
+        # Load ResNet-18
+        self.resnet = models.resnet18(pretrained=pretrained)
+        
+        # Modify first conv layer: 3 channels -> 2 channels
+        # Original: Conv2d(3, 64, kernel_size=7, stride=2, padding=3)
+        # New:      Conv2d(2, 64, kernel_size=7, stride=2, padding=3)
+        
+        original_conv1 = self.resnet.conv1
+        self.resnet.conv1 = nn.Conv2d(
+            2,  # 2 input channels (ON/OFF polarities)
+            64,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            bias=False
+        )
+        
+        # If pretrained, initialize new conv1 from original weights
+        if pretrained:
+            with torch.no_grad():
+                # Average the 3-channel weights to 2 channels
+                # Shape: (64, 3, 7, 7) -> (64, 2, 7, 7)
+                self.resnet.conv1.weight[:, :2, :, :] = original_conv1.weight[:, :2, :, :]
+        
+        # Modify final fully connected layer: 1000 classes -> 3 classes
+        num_ftrs = self.resnet.fc.in_features
+        self.resnet.fc = nn.Linear(num_ftrs, num_classes)
+    
+    def forward(self, x):
+        return self.resnet(x)
 
 
 # == train / eval ==============================================================
@@ -108,18 +147,23 @@ if __name__ == "__main__":
         device = torch.device('mps')
     else:
         device = torch.device('cpu')
+    
+    print("=" * 60)
+    print("TRAINING: Time-based Histogram Model")
+    print("=" * 60)
     print(f"Device     : {device}")
-    print(f"Output dir : {SLIDING_DIR_T7}\n")
+    print(f"Model      : {'ResNet-18' if USE_RESNET else 'Custom CNN'}")
+    print(f"Output dir : {SLIDING_DIR_T7_TIME}\n")
 
     # == load & split ==========================================================
-    dataset = TimeSurfaceDataset()
+    dataset = HistogramTimeDataset()
     loaded  = dataset.load_samples()
     split   = dataset.get_split(loaded, test_size=0.20, val_size=0.10)
 
-    raw_data      = loaded['data']
-    raw_labels    = loaded['labels']
-    recording_ids = loaded['recording_ids']
+    raw_data   = loaded['data']
+    raw_labels = loaded['labels']
 
+    recording_ids = loaded['recording_ids']
     train_mask = np.isin(recording_ids, split['recs_train'])
     val_mask   = np.isin(recording_ids, split['recs_val'])
     test_mask  = np.isin(recording_ids, split['recs_test'])
@@ -132,14 +176,14 @@ if __name__ == "__main__":
 
     # == dataloaders ===========================================================
     def make_loader(indices, shuffle=False):
-        ds = MmapTimeSurfaceDataset(raw_data, raw_labels, indices)
+        ds = MmapGestureDataset(raw_data, raw_labels, indices)
         return DataLoader(ds, batch_size=32, shuffle=shuffle, num_workers=0)
 
     train_loader = make_loader(train_idx, shuffle=True)
     val_loader   = make_loader(val_idx)
     test_loader  = make_loader(test_idx)
-
-    # == debug =================================================================
+    
+    # == debug first batch =====================================================
     print("\nDebug — checking first batch...")
     X_debug, y_debug = next(iter(train_loader))
     print(f"  Input shape : {X_debug.shape}")
@@ -147,21 +191,25 @@ if __name__ == "__main__":
     print(f"  Labels      : {y_debug.numpy()}")
     print(f"  Non-zero pixels: {(X_debug != 0).float().mean():.4f}")
 
-    # == model / optimiser / loss ==============================================
-    model = TimeSurfaceCNN().to(device)
-
+    # == model / optimizer / loss ==============================================
+    if USE_RESNET:
+        model = ResNet18Histogram(num_classes=3, pretrained=False).to(device)
+    else:
+        model = HistogramCNN().to(device)
+    
     class_counts = np.array([
         np.sum(raw_labels[train_idx] == 0),
         np.sum(raw_labels[train_idx] == 1),
         np.sum(raw_labels[train_idx] == 2),
     ])
-    print(f"Train class counts: rock={class_counts[0]}, paper={class_counts[1]}, scissor={class_counts[2]}")
-
+    print(f"\nTrain class counts: rock={class_counts[0]}, paper={class_counts[1]}, scissor={class_counts[2]}")
+    
     class_weights = torch.FloatTensor(1.0 / class_counts)
     class_weights = class_weights * len(class_counts)
-    criterion     = nn.CrossEntropyLoss(weight=class_weights.to(device))
-    optimizer     = optim.Adam(model.parameters(), lr=0.001)
-    scheduler     = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
+    
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='max', factor=0.5, patience=3)
 
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -173,10 +221,11 @@ if __name__ == "__main__":
 
     best_val_acc      = 0.0
     epochs_no_improve = 0
-    model_path        = SLIDING_DIR_T7 / 'model_timesurface_best.pth'
+    model_name        = 'resnet18' if USE_RESNET else 'custom_cnn'
+    model_path        = SLIDING_DIR_T7_TIME / f'model_histogram_time_{model_name}_best.pth'
 
     print("=" * 50)
-    print("Training Time Surface CNN")
+    print(f"Training {model_name.upper()}")
     print("=" * 50 + "\n")
 
     for epoch in range(1, MAX_EPOCHS + 1):
@@ -205,14 +254,16 @@ if __name__ == "__main__":
     print("=" * 50)
     print("Final Evaluation on Test Set")
     print("=" * 50)
-    model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+    model.load_state_dict(torch.load(model_path, map_location=device))
     test_loss, test_acc = evaluate(model, test_loader, criterion, device)
     print(f"\nTest  : loss={test_loss:.4f}  acc={test_acc:.2f}%")
     print(f"Best val acc: {best_val_acc:.2f}%")
 
     # == save metrics ==========================================================
-    metrics_path = SLIDING_DIR_T7 / 'timesurface_training_metrics.txt'
+    metrics_path = SLIDING_DIR_T7_TIME / f'histogram_time_{model_name}_metrics.txt'
     with open(metrics_path, 'w') as f:
+        f.write(f"Model: {model_name}\n")
+        f.write(f"Window: 50ms time-based\n")
         f.write(f"Best validation accuracy : {best_val_acc:.2f}%\n")
         f.write(f"Test accuracy            : {test_acc:.2f}%\n")
         f.write(f"Test loss                : {test_loss:.4f}\n")

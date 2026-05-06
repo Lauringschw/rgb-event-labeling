@@ -16,7 +16,7 @@ ORIG_WIDTH          = 1280
 N_BINS              = 5            # voxel grid temporal bins
 EXTRACTION_RANGE_US = 300_000      # 300ms
 BATCH_SIZE          = 500
-MAX_RECORDINGS_PER_GESTURE = 270   # match histogram run
+MAX_RECORDINGS_PER_GESTURE = 400   # match histogram run
 
 RECORDINGS_DIR = Path(os.getenv("RECORDINGS_DIR"))
 DIR            = os.getenv("DIR")

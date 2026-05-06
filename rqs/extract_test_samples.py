@@ -16,7 +16,7 @@ SENSOR_WIDTH               = 640
 ORIG_HEIGHT                = 720
 ORIG_WIDTH                 = 1280
 N_BINS                     = 5    # voxel grid bins
-MAX_RECORDINGS_PER_GESTURE = 270
+MAX_RECORDINGS_PER_GESTURE = 400
 
 RQ1_DURATIONS_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 RQ2_OFFSETS_MS   = [0, 20, 40, 60, 80, 100]
