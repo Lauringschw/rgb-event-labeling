@@ -1,26 +1,22 @@
-# == Drives ====================================================================
-T7=/media/lau/T7/thesis
-SEAGATE=/media/lau/seagate
+# == Drives (Mac paths) ========================================================
+T7=/Volumes/T7/thesis
 
-# == Recordings (source — Seagate, read-only during processing) ================
-RECORDINGS_DIR=/Volumes/T7/thesis/sliding_window
-DIR=
-# full path to recordings: $RECORDINGS_DIR/$DIR/rock/, /paper/, /scissor/
+# == Recordings (don't need on Mac, data already extracted) ====================
+RECORDINGS_DIR=/Volumes/T7/thesis/recordings
+DIR=recording_session_1
 
-# == Sliding window batch files (written during extraction, deleted after merge) =
-# These are temporary, deleted by merge.py after merging
+# == Sliding window batch files (don't need on Mac) ============================
 SLIDING_DIR=/Volumes/T7/thesis/sliding_window/batches
+SLIDING_DIR_TIME=/Volumes/T7/thesis/sliding_window_time_50ms/batches
 
-# == Merged training dataset (final) ==============================
-# histogram_data.npy, histogram_labels.npy, histogram_recording_ids.npy
+# == Merged training dataset (READ from here for training) =====================
 SLIDING_DIR_T7=/Volumes/T7/thesis/sliding_window/merged
+SLIDING_DIR_T7_TIME=/Volumes/T7/thesis/sliding_window_time_50ms/merged
 
-# == Model weights (saved by train_histogram.py) ==============================─
+# == Model weights (saved during training) =====================================
 MODEL_DIR=/Volumes/T7/thesis/models
 
-# == Test samples + results (RQ1, RQ2, RQ3) ==================================─
+# == Test samples + results ====================================================
+OUTPUT_DIR=/Volumes/T7/thesis
 TEST_DIR=/Volumes/T7/thesis/test_samples
-
-# == Misc ======================================================================
 RESULTS_DIR=/Volumes/T7/thesis/results
-

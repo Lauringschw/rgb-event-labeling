@@ -1,0 +1,24 @@
+# == Drives (Linux paths) ======================================================
+T7=/media/lau/T7/thesis
+SEAGATE=/media/lau/seagate
+
+# == Recordings (source — Seagate) =============================================
+RECORDINGS_DIR=/media/lau/seagate/recordings
+DIR=recording_session_1
+# full path: $RECORDINGS_DIR/$DIR/rock/, /paper/, /scissor/
+
+# == Sliding window batch files (temporary) ====================================
+SLIDING_DIR=/media/lau/T7/thesis/sliding_window/batches
+SLIDING_DIR_TIME=/media/lau/T7/thesis/sliding_window_time_50ms/batches
+
+# == Merged training dataset (final) ===========================================
+SLIDING_DIR_T7=/media/lau/T7/thesis/sliding_window/merged
+SLIDING_DIR_T7_TIME=/media/lau/T7/thesis/sliding_window_time_50ms/merged
+
+# == Model weights =============================================================
+MODEL_DIR=/media/lau/T7/thesis/models
+
+# == Test samples + results ====================================================
+OUTPUT_DIR=/media/lau/T7/thesis
+TEST_DIR=/media/lau/T7/thesis/test_samples
+RESULTS_DIR=/media/lau/T7/thesis/results
