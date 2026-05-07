@@ -3,8 +3,8 @@ T7=/media/lau/T7/thesis
 SEAGATE=/media/lau/seagate
 
 # == Recordings (source — Seagate) =============================================
-RECORDINGS_DIR=/media/lau/seagate/recordings
-DIR=recording_session_1
+RECORDINGS_DIR=/media/lau/seagate
+DIR=trial2
 # full path: $RECORDINGS_DIR/$DIR/rock/, /paper/, /scissor/
 
 # == Sliding window batch files (temporary) ====================================
