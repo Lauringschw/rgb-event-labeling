@@ -8,11 +8,12 @@ import os
 from dotenv import load_dotenv
 from torchvision import models
 
-from dataset_loader_histogram_time import HistogramTimeDataset
+from dataset_loader_histogram import HistogramTimeDataset
 
 load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 SLIDING_DIR_T7_TIME = Path(os.getenv("SLIDING_DIR_T7_TIME"))
+OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR"))
 SLIDING_DIR_T7_TIME.mkdir(parents=True, exist_ok=True)
 
 USE_RESNET = True  # Toggle: True = ResNet-18, False = Custom CNN
@@ -76,9 +77,6 @@ class ResNet18Histogram(nn.Module):
         self.resnet = models.resnet18(pretrained=pretrained)
         
         # Modify first conv layer: 3 channels -> 2 channels
-        # Original: Conv2d(3, 64, kernel_size=7, stride=2, padding=3)
-        # New:      Conv2d(2, 64, kernel_size=7, stride=2, padding=3)
-        
         original_conv1 = self.resnet.conv1
         self.resnet.conv1 = nn.Conv2d(
             2,  # 2 input channels (ON/OFF polarities)
@@ -92,8 +90,6 @@ class ResNet18Histogram(nn.Module):
         # If pretrained, initialize new conv1 from original weights
         if pretrained:
             with torch.no_grad():
-                # Average the 3-channel weights to 2 channels
-                # Shape: (64, 3, 7, 7) -> (64, 2, 7, 7)
                 self.resnet.conv1.weight[:, :2, :, :] = original_conv1.weight[:, :2, :, :]
         
         # Modify final fully connected layer: 1000 classes -> 3 classes
@@ -174,6 +170,11 @@ if __name__ == "__main__":
 
     print(f"\nIndex counts: train={len(train_idx)}, val={len(val_idx)}, test={len(test_idx)}")
 
+    # == SAVE TEST RECORDING IDS FOR RQ EVALUATION ============================
+    test_rec_ids_path = OUTPUT_DIR / "test_recording_ids.npy"
+    np.save(test_rec_ids_path, split['recs_test'])
+    print(f"Saved test recording IDs: {test_rec_ids_path}\n")
+
     # == dataloaders ===========================================================
     def make_loader(indices, shuffle=False):
         ds = MmapGestureDataset(raw_data, raw_labels, indices)
@@ -184,7 +185,7 @@ if __name__ == "__main__":
     test_loader  = make_loader(test_idx)
     
     # == debug first batch =====================================================
-    print("\nDebug — checking first batch...")
+    print("Debug — checking first batch...")
     X_debug, y_debug = next(iter(train_loader))
     print(f"  Input shape : {X_debug.shape}")
     print(f"  Input min   : {X_debug.min():.4f}  max: {X_debug.max():.4f}")
@@ -263,8 +264,9 @@ if __name__ == "__main__":
     metrics_path = SLIDING_DIR_T7_TIME / f'histogram_time_{model_name}_metrics.txt'
     with open(metrics_path, 'w') as f:
         f.write(f"Model: {model_name}\n")
-        f.write(f"Window: 50ms time-based\n")
+        f.write(f"Window: 30ms time-based\n")
         f.write(f"Best validation accuracy : {best_val_acc:.2f}%\n")
         f.write(f"Test accuracy            : {test_acc:.2f}%\n")
         f.write(f"Test loss                : {test_loss:.4f}\n")
     print(f"\nMetrics saved to {metrics_path}")
+    print(f"Test IDs saved to {test_rec_ids_path}")

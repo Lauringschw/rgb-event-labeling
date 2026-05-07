@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / '.env')
 
 OUTPUT_DIR       = Path(os.getenv("OUTPUT_DIR"))
+SLIDING_DIR_T7_TIME = Path(os.getenv("SLIDING_DIR_T7_TIME"))
+
 RQ1_DURATIONS_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 RQ2_OFFSETS_MS   = [0, 20, 40, 60, 80, 100]
 RQ2_DURATION_MS  = 30
@@ -72,8 +74,9 @@ MODEL_CLS = {
     'timesurface': TimeSurfaceCNN,
 }
 
+# Model paths relative to OUTPUT_DIR
 MODEL_FILE = {
-    'histogram':   'model_histogram_fixed_best.pth',
+    'histogram':   SLIDING_DIR_T7_TIME / 'model_histogram_time_resnet18_best.pth',
     'voxel':       'model_voxel_best.pth',
     'timesurface': 'model_timesurface_best.pth',
 }
@@ -232,7 +235,7 @@ if __name__ == "__main__":
     device = get_device()
     print(f"\nDevice: {device}")
 
-    model_path = OUTPUT_DIR / MODEL_FILE[args.repr]
+    model_path = MODEL_FILE[args.repr]
     if not model_path.exists():
         raise FileNotFoundError(f"Model not found: {model_path}")
 

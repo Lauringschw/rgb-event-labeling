@@ -74,8 +74,8 @@ def events_to_histogram(events, height=SENSOR_HEIGHT, width=SENSOR_WIDTH,
 def extract_time_windows(events, t_start_us, t_end_us):
     """
     Slide a FIXED-TIME window over the event stream.
-    Window duration: WINDOW_DURATION_US (50ms)
-    Stride:          STRIDE_DURATION_US (25ms = 50% overlap)
+    Window duration: WINDOW_DURATION_US (30ms)
+    Stride:          STRIDE_DURATION_US (15ms = 50% overlap)
     
     Returns list of (2, H, W) histogram arrays.
     """
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     recording_id = 0
 
     print("=" * 60)
-    print("TIME-BASED EXTRACTION (50ms windows, 50% overlap)")
+    print("TIME-BASED EXTRACTION (30ms windows, 50% overlap)")
     print("=" * 60)
     print(f"Window duration : {WINDOW_DURATION_US / 1000:.1f} ms")
     print(f"Stride          : {STRIDE_DURATION_US / 1000:.1f} ms")
@@ -241,4 +241,4 @@ if __name__ == "__main__":
     print(f"Failed: {total_failed} recordings")
     
     print(f"Batches saved to: {SLIDING_DIR}")
-    print(f"Next step: run merge_histogram_time.py")
+    print(f"Next step: run merge_histogram.py")
