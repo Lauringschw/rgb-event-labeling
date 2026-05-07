@@ -5,7 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-load_dotenv(Path(__file__).parent / '.env')
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 GESTURES = ["rock", "paper", "scissor"]
 COLORS   = {'rock': '#e74c3c', 'paper': '#3498db', 'scissor': '#2ecc71'}
@@ -62,7 +62,7 @@ def visualize_300ms_extraction(base: Path, output_dir: Path):
     """
     
     fig = plt.figure(figsize=(16, 12))
-    gs = fig.add_gridspec(4, 3, hspace=0.35, wspace=0.3)
+    gs = fig.add_gridspec(5, 3, hspace=0.35, wspace=0.3)
     
     # Time bins for event density
     BIN_MS = 10
