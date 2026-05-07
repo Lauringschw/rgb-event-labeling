@@ -3,7 +3,7 @@ import numpy as np
 import os
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / '.env')
+load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 # == paths =====================================================================
 SLIDING_DIR_TIME    = Path(os.getenv("SLIDING_DIR_TIME"))      # batch files

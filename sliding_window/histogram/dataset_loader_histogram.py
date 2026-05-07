@@ -4,7 +4,7 @@ import os
 from sklearn.model_selection import train_test_split
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / '.env')
+load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 SLIDING_DIR_T7_TIME = Path(os.getenv("SLIDING_DIR_T7_TIME"))
 

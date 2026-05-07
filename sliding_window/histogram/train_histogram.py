@@ -10,7 +10,7 @@ from torchvision import models
 
 from dataset_loader_histogram_time import HistogramTimeDataset
 
-load_dotenv(Path(__file__).parent.parent / '.env')
+load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 SLIDING_DIR_T7_TIME = Path(os.getenv("SLIDING_DIR_T7_TIME"))
 SLIDING_DIR_T7_TIME.mkdir(parents=True, exist_ok=True)
