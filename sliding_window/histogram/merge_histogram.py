@@ -3,12 +3,12 @@ import numpy as np
 import os
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent.parent / '.env')
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 # == paths =====================================================================
-SLIDING_DIR    = Path(os.getenv("SLIDING_DIR"))      # batch files
-SLIDING_DIR_T7 = Path(os.getenv("SLIDING_DIR_T7"))  # merged output 
-SLIDING_DIR_T7.mkdir(parents=True, exist_ok=True)
+SLIDING_DIR_TIME    = Path(os.getenv("SLIDING_DIR_TIME"))      # batch files
+SLIDING_DIR_T7_TIME = Path(os.getenv("SLIDING_DIR_T7_TIME"))  # merged output 
+SLIDING_DIR_T7_TIME.mkdir(parents=True, exist_ok=True)
 
 
 def get_batch_num(filepath: Path) -> int:
@@ -17,17 +17,17 @@ def get_batch_num(filepath: Path) -> int:
 
 def merge():
     print("=" * 60)
-    print("MERGE: batches -> final dataset")
+    print("MERGE: TIME-BASED batches -> final dataset")
     print("=" * 60)
-    print(f"Batches : {SLIDING_DIR}")
-    print(f"Output  : {SLIDING_DIR_T7}\n")
+    print(f"Batches : {SLIDING_DIR_TIME}")
+    print(f"Output  : {SLIDING_DIR_T7_TIME}\n")
 
     # == find batch files =======================================================
-    data_files  = sorted(SLIDING_DIR.glob("histogram_data_batch_*.npy"),
+    data_files  = sorted(SLIDING_DIR_TIME.glob("histogram_time_data_batch_*.npy"),
                          key=get_batch_num)
-    label_files = sorted(SLIDING_DIR.glob("histogram_labels_batch_*.npy"),
+    label_files = sorted(SLIDING_DIR_TIME.glob("histogram_time_labels_batch_*.npy"),
                          key=get_batch_num)
-    recid_files = sorted(SLIDING_DIR.glob("histogram_recids_batch_*.npy"),
+    recid_files = sorted(SLIDING_DIR_TIME.glob("histogram_time_recids_batch_*.npy"),
                          key=get_batch_num)
 
     if not data_files:
@@ -39,14 +39,14 @@ def merge():
           f"(#{get_batch_num(data_files[0])} – #{get_batch_num(data_files[-1])})\n")
 
     # == count total samples and infer shape ====================================
-    print("Counting samples ")
+    print("Counting samples...")
     total_samples = sum(len(np.load(f)) for f in label_files)
-    sample_shape  = np.load(data_files[0]).shape[1:]  # (2, 720, 1280)
+    sample_shape  = np.load(data_files[0]).shape[1:]  # (2, 360, 640)
 
     bytes_needed = total_samples * int(np.prod(sample_shape)) * 4  # float32
     gb_needed    = bytes_needed / 1e9
 
-    stat         = os.statvfs(SLIDING_DIR_T7)
+    stat         = os.statvfs(SLIDING_DIR_T7_TIME)
     available_gb = (stat.f_bavail * stat.f_frsize) / 1e9
 
     print(f"Samples      : {total_samples:,}")
@@ -54,7 +54,6 @@ def merge():
     print(f"Space needed : {gb_needed:.1f} GB")
     print(f"T7 available : {available_gb:.1f} GB")
 
-    # peak usage = merged file + one batch ==> not all batches at once
     one_batch_gb = int(np.prod(sample_shape)) * 4 * 500 / 1e9  # BATCH_SIZE=500
     peak_gb      = gb_needed + one_batch_gb
     print(f"Peak usage   : ~{peak_gb:.1f} GB (merged + one batch)\n")
@@ -65,11 +64,11 @@ def merge():
     print("=> Enough space\n")
 
     # == create memory-mapped output files ======================================
-    out_data   = SLIDING_DIR_T7 / "histogram_data.npy"
-    out_labels = SLIDING_DIR_T7 / "histogram_labels.npy"
-    out_recids = SLIDING_DIR_T7 / "histogram_recording_ids.npy"
+    out_data   = SLIDING_DIR_T7_TIME / "histogram_time_data.npy"
+    out_labels = SLIDING_DIR_T7_TIME / "histogram_time_labels.npy"
+    out_recids = SLIDING_DIR_T7_TIME / "histogram_time_recording_ids.npy"
 
-    print("Creating memory-mapped output files ")
+    print("Creating memory-mapped output files...")
     mm_data   = np.lib.format.open_memmap(
         str(out_data),   mode='w+', dtype=np.float32,
         shape=(total_samples,) + sample_shape)
@@ -82,7 +81,7 @@ def merge():
     print("=> Files created\n")
 
     # == merge batch by batch, delete each batch immediately after =============
-    print("Merging (each batch deleted after writing) \n")
+    print("Merging (each batch deleted after writing)...\n")
     current_idx = 0
 
     for i, (df, lf, rf) in enumerate(zip(data_files, label_files, recid_files)):
@@ -111,7 +110,7 @@ def merge():
     print("\nFlushed to disk.")
 
     # == verify =================================================================
-    print("\nVerifying ")
+    print("\nVerifying...")
     final_labels = np.load(out_labels)
     final_recids = np.load(out_recids)
     print(f"  rock    : {np.sum(final_labels == 0):,}")
@@ -124,9 +123,9 @@ def merge():
     print("\n" + "=" * 60)
     print("MERGE COMPLETE")
     print("=" * 60)
-    print(f"Output: {SLIDING_DIR_T7}")
+    print(f"Output: {SLIDING_DIR_T7_TIME}")
     print("All batch files deleted.")
-    print("\nNext step: run train_histogram.py")
+    print("\nNext step: run train_histogram_time.py")
 
 
 if __name__ == "__main__":

@@ -7,66 +7,109 @@ import os
 load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 # == configs =====================================================================
-WINDOW_SIZE_EVENTS = 20_000
-STRIDE_EVENTS      = 4_000
+WINDOW_DURATION_US = 50_000   # 50ms time window
+STRIDE_DURATION_US = 25_000   # 50% overlap (25ms stride)
 SENSOR_HEIGHT = 360
 SENSOR_WIDTH  = 640
-EXTRACTION_RANGE_US = 300_000   # 300 ms in microseconds
+EXTRACTION_RANGE_US = 300_000   # 300 ms total extraction window
 BATCH_SIZE         = 500        # samples per batch file
-MAX_RECORDINGS_PER_GESTURE = 320 # 320 before
+MAX_RECORDINGS_PER_GESTURE = 320
 
 # == paths =====================================================================
 RECORDINGS_DIR = Path(os.getenv("RECORDINGS_DIR"))
 DIR            = os.getenv("DIR")
-SLIDING_DIR    = Path(os.getenv("SLIDING_DIR"))
+SLIDING_DIR    = Path(os.getenv("SLIDING_DIR_TIME"))  # NEW: separate output dir
 SLIDING_DIR.mkdir(parents=True, exist_ok=True)
 
 GESTURE_TO_LABEL = {'rock': 0, 'paper': 1, 'scissor': 2}
 
 
 # == representation ============================================================
+# NOTE: Metavision SDK usage
+# - EventsIterator: Used for loading .raw files (line 131)
+# - Histogram generation: Manual np.add.at() is actually optimal here
+#   
+# Why not use OnDemandFrameGenerationAlgorithm for histograms?
+# - It generates grayscale *accumulation* frames (visualization)
+# - Our histogram = raw polarity counts (ON/OFF events per pixel)
+# - Manual counting with np.add.at() is more direct and efficient
+#
+# Metavision SDK is best for: video rendering, time surfaces, contrast maps
+# For raw 2-channel histograms: manual counting is standard practice
 
 def events_to_histogram(events, height=SENSOR_HEIGHT, width=SENSOR_WIDTH,
                         orig_height=720, orig_width=1280):
-    histogram = np.zeros((2, height, width), dtype=np.float32)
+    """
+    Convert events to 2-channel histogram (ON/OFF polarity counts).
+    Uses Metavision SDK for event loading, manual counting for histogram.
+    """
     if len(events) == 0:
-        return histogram
+        return np.zeros((2, height, width), dtype=np.float32)
 
+    # Downsample coordinates: original 720×1280 → target 360×640
+    # CRITICAL: Cast to int32 BEFORE multiplication to avoid uint16 overflow
     x = (events['x'].astype(np.int32) * width  // orig_width)
     y = (events['y'].astype(np.int32) * height // orig_height)
-
+    
+    # Filter valid coordinates
     valid = (x >= 0) & (x < width) & (y >= 0) & (y < height)
     x, y = x[valid], y[valid]
     p    = events['p'][valid]
-
+    
+    # Build 2-channel histogram: channel 0 = ON events, channel 1 = OFF events
+    histogram = np.zeros((2, height, width), dtype=np.float32)
+    
     on_mask  = p == 1
     off_mask = ~on_mask
-
+    
+    # Accumulate counts per pixel
     np.add.at(histogram[0], (y[on_mask],  x[on_mask]),  1)
     np.add.at(histogram[1], (y[off_mask], x[off_mask]), 1)
+    
     return histogram
 
 
-# == sliding window ============================================================
+# == TIME-BASED sliding window =================================================
 
-def extract_sliding_windows(events):
+def extract_time_windows(events, t_start_us, t_end_us):
     """
-    Slide a fixed-event-count window over the event stream.
-    Window size: WINDOW_SIZE_EVENTS events
-    Stride:      STRIDE_EVENTS events  (80% overlap)
+    Slide a FIXED-TIME window over the event stream.
+    Window duration: WINDOW_DURATION_US (50ms)
+    Stride:          STRIDE_DURATION_US (25ms = 50% overlap)
+    
     Returns list of (2, H, W) histogram arrays.
     """
     samples = []
-    n = len(events)
-
-    if n < WINDOW_SIZE_EVENTS:
-        print(f"    Warning: only {n} events — less than window size {WINDOW_SIZE_EVENTS}, skipping")
-        return []
-
-    for start in range(0, n - WINDOW_SIZE_EVENTS + 1, STRIDE_EVENTS):
-        window = events[start : start + WINDOW_SIZE_EVENTS]
-        samples.append(events_to_histogram(window))
-
+    
+    if len(events) == 0:
+        return samples
+    
+    # Temporal bounds
+    first_t = events['t'][0]
+    last_t  = events['t'][-1]
+    
+    # Sliding window over TIME (not event count)
+    current_t = t_start_us
+    
+    while current_t + WINDOW_DURATION_US <= t_end_us:
+        window_end = current_t + WINDOW_DURATION_US
+        
+        # Select events in time window
+        mask = (events['t'] >= current_t) & (events['t'] < window_end)
+        window_events = events[mask]
+        
+        # Skip if too few events (optional threshold)
+        if len(window_events) < 100:  # minimum 100 events
+            print(f"      Warning: only {len(window_events)} events in [{current_t}, {window_end}), skipping")
+            current_t += STRIDE_DURATION_US
+            continue
+        
+        histogram = events_to_histogram(window_events)
+        samples.append(histogram)
+        
+        # Slide forward by stride
+        current_t += STRIDE_DURATION_US
+    
     return samples
 
 
@@ -74,7 +117,7 @@ def extract_sliding_windows(events):
 
 def process_recording(folder: Path):
     """
-    Load a single recording, extract sliding-window histogram samples.
+    Load a single recording, extract TIME-BASED sliding-window histogram samples.
     Returns list of (2, H, W) arrays, or None on failure.
     """
     labels_file = folder / "labels.npy"
@@ -90,7 +133,7 @@ def process_recording(folder: Path):
     t_start = t_initial
     t_end   = t_initial + EXTRACTION_RANGE_US
 
-    # load all events
+    # Load all events
     mv_iterator = EventsIterator(str(raw_file))
     chunks = [ev for ev in mv_iterator]
     if not chunks:
@@ -99,7 +142,7 @@ def process_recording(folder: Path):
 
     all_events = np.concatenate(chunks)
 
-    # filter to extraction window
+    # Filter to extraction window
     mask   = (all_events['t'] >= t_start) & (all_events['t'] < t_end)
     events = all_events[mask]
 
@@ -107,21 +150,27 @@ def process_recording(folder: Path):
         print(f"  !! No events in [{t_start}, {t_end}) for {folder.name}")
         return None
 
-    samples = extract_sliding_windows(events)
-    print(f"  -> {len(samples)} samples from {len(events)} events")
+    # Extract TIME-BASED windows
+    samples = extract_time_windows(events, t_start, t_end)
+    
+    n_events = len(events)
+    duration_ms = (events['t'][-1] - events['t'][0]) / 1000.0
+    
+    print(f"  -> {len(samples)} samples from {n_events} events ({duration_ms:.1f}ms)")
     return samples
 
 
 # == batch helpers =============================================================
 
 def save_batch(batch_samples, batch_labels, batch_rec_ids, batch_num):
-    np.save(SLIDING_DIR / f"histogram_data_batch_{batch_num}.npy",
+    np.save(SLIDING_DIR / f"histogram_time_data_batch_{batch_num}.npy",
             np.array(batch_samples, dtype=np.float32))
-    np.save(SLIDING_DIR / f"histogram_labels_batch_{batch_num}.npy",
+    np.save(SLIDING_DIR / f"histogram_time_labels_batch_{batch_num}.npy",
             np.array(batch_labels, dtype=np.int64))
-    np.save(SLIDING_DIR / f"histogram_recids_batch_{batch_num}.npy",
+    np.save(SLIDING_DIR / f"histogram_time_recids_batch_{batch_num}.npy",
             np.array(batch_rec_ids, dtype=np.int64))
     print(f"  [batch {batch_num}] saved {len(batch_samples)} samples")
+
 
 # == main ======================================================================
 
@@ -137,11 +186,18 @@ if __name__ == "__main__":
     total_failed    = 0
     total_samples   = 0
 
-    # for split
     recording_id = 0
 
+    print("=" * 60)
+    print("TIME-BASED EXTRACTION (50ms windows, 50% overlap)")
+    print("=" * 60)
+    print(f"Window duration : {WINDOW_DURATION_US / 1000:.1f} ms")
+    print(f"Stride          : {STRIDE_DURATION_US / 1000:.1f} ms")
+    print(f"Overlap         : {100 * (1 - STRIDE_DURATION_US / WINDOW_DURATION_US):.0f}%")
+    print(f"Output dir      : {SLIDING_DIR}\n")
+
     for gesture in GESTURE_TO_LABEL:
-        prefix           = gesture[0]          # 'r', 'p', 's'
+        prefix           = gesture[0]
         label            = GESTURE_TO_LABEL[gesture]
         gesture_samples  = 0
         gesture_ok       = 0
@@ -172,17 +228,17 @@ if __name__ == "__main__":
             else:
                 total_failed += 1
 
-            recording_id += 1   # increment regardless of success/failure
+            recording_id += 1
 
         print(f"\n{gesture.upper()}: {gesture_ok} recordings, {gesture_samples} samples")
 
-    # flush remaining samples
+    # Flush remaining samples
     if batch_samples:
         save_batch(batch_samples, batch_labels, batch_rec_ids, batch_num)
 
-    print(f"\n{'='*50}")
+    print(f"\n{'='*60}")
     print(f"TOTAL: {total_processed} recordings -> {total_samples} samples")
     print(f"Failed: {total_failed} recordings")
     
     print(f"Batches saved to: {SLIDING_DIR}")
-    print(f"Next step: run merge.py")
+    print(f"Next step: run merge_histogram_time.py")
