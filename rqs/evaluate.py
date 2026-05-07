@@ -6,6 +6,8 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
+from torchvision import models
+
 load_dotenv(Path(__file__).parent / '.env')
 
 OUTPUT_DIR       = Path(os.getenv("OUTPUT_DIR"))
@@ -19,6 +21,33 @@ LABEL_TO_GESTURE = {0: 'rock', 1: 'paper', 2: 'scissor'}
 
 
 # == models ====================================================================
+
+
+class ResNet18Histogram(nn.Module):
+    """ResNet-18 adapted for 2-channel histogram input"""
+    def __init__(self, num_classes=3, pretrained=False):
+        super().__init__()
+        
+        # Load ResNet-18
+        self.resnet = models.resnet18(pretrained=pretrained)
+        
+        # Modify first conv layer: 3 channels -> 2 channels
+        original_conv1 = self.resnet.conv1
+        self.resnet.conv1 = nn.Conv2d(
+            2,  # 2 input channels (ON/OFF polarities)
+            64,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            bias=False
+        )
+        
+        # Modify final fully connected layer: 1000 classes -> 3 classes
+        num_ftrs = self.resnet.fc.in_features
+        self.resnet.fc = nn.Linear(num_ftrs, num_classes)
+    
+    def forward(self, x):
+        return self.resnet(x)
 
 class HistogramCNN(nn.Module):
     def __init__(self):
@@ -69,7 +98,7 @@ class TimeSurfaceCNN(nn.Module):
 
 
 MODEL_CLS = {
-    'histogram':   HistogramCNN,
+    'histogram':   ResNet18Histogram, 
     'voxel':       VoxelCNN,
     'timesurface': TimeSurfaceCNN,
 }

@@ -10,6 +10,8 @@ from torchvision import models
 
 from dataset_loader_histogram import HistogramTimeDataset
 
+import random
+
 load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 SLIDING_DIR_T7_TIME = Path(os.getenv("SLIDING_DIR_T7_TIME"))
@@ -17,6 +19,19 @@ OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR"))
 SLIDING_DIR_T7_TIME.mkdir(parents=True, exist_ok=True)
 
 USE_RESNET = True  # Toggle: True = ResNet-18, False = Custom CNN
+
+SEED = 42
+
+def seed_everything(seed=SEED):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    if torch.backends.mps.is_available():
+        torch.mps.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 # == dataset ===================================================================
@@ -137,6 +152,8 @@ def evaluate(model, loader, criterion, device):
 # == main ======================================================================
 
 if __name__ == "__main__":
+    seed_everything(SEED)
+    
     if torch.cuda.is_available():
         device = torch.device('cuda')
     elif torch.backends.mps.is_available():
@@ -178,11 +195,19 @@ if __name__ == "__main__":
     # == dataloaders ===========================================================
     def make_loader(indices, shuffle=False):
         ds = MmapGestureDataset(raw_data, raw_labels, indices)
-        return DataLoader(ds, batch_size=32, shuffle=shuffle, num_workers=0)
+        generator = torch.Generator()
+        generator.manual_seed(SEED)
+        return DataLoader(
+            ds, 
+            batch_size=32, 
+            shuffle=shuffle, 
+            num_workers=0,
+            generator=generator
+        )
 
-    train_loader = make_loader(train_idx, shuffle=True)
-    val_loader   = make_loader(val_idx)
-    test_loader  = make_loader(test_idx)
+    train_idx = np.sort(np.where(train_mask)[0])
+    val_idx   = np.sort(np.where(val_mask)[0])  
+    test_idx  = np.sort(np.where(test_mask)[0])  
     
     # == debug first batch =====================================================
     print("Debug — checking first batch...")
@@ -270,3 +295,5 @@ if __name__ == "__main__":
         f.write(f"Test loss                : {test_loss:.4f}\n")
     print(f"\nMetrics saved to {metrics_path}")
     print(f"Test IDs saved to {test_rec_ids_path}")
+    
+    
