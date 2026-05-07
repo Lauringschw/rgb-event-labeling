@@ -7,8 +7,8 @@ import os
 load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 # == configs =====================================================================
-WINDOW_DURATION_US = 50_000   # 50ms time window
-STRIDE_DURATION_US = 25_000   # 50% overlap (25ms stride)
+WINDOW_DURATION_US = 30_000   # 30ms time window
+STRIDE_DURATION_US = 15_000   # 50% overlap (15ms stride)
 SENSOR_HEIGHT = 360
 SENSOR_WIDTH  = 640
 EXTRACTION_RANGE_US = 300_000   # 300 ms total extraction window
