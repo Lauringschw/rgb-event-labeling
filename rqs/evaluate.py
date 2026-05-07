@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from torchvision import models
 
-load_dotenv(Path(__file__).parent / '.env')
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 OUTPUT_DIR       = Path(os.getenv("OUTPUT_DIR"))
 SLIDING_DIR_T7_TIME = Path(os.getenv("SLIDING_DIR_T7_TIME"))

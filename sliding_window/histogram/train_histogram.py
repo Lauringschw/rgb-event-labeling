@@ -182,8 +182,8 @@ if __name__ == "__main__":
     test_mask  = np.isin(recording_ids, split['recs_test'])
 
     train_idx = np.sort(np.where(train_mask)[0])
-    val_idx   = np.where(val_mask)[0]
-    test_idx  = np.where(test_mask)[0]
+    val_idx   = np.sort(np.where(val_mask)[0])  # ← ADD np.sort
+    test_idx  = np.sort(np.where(test_mask)[0])  # ← ADD np.sort
 
     print(f"\nIndex counts: train={len(train_idx)}, val={len(val_idx)}, test={len(test_idx)}")
 
@@ -203,11 +203,12 @@ if __name__ == "__main__":
             shuffle=shuffle, 
             num_workers=0,
             generator=generator
-        )
+    )
 
-    train_idx = np.sort(np.where(train_mask)[0])
-    val_idx   = np.sort(np.where(val_mask)[0])  
-    test_idx  = np.sort(np.where(test_mask)[0])  
+    train_loader = make_loader(train_idx, shuffle=True)
+    val_loader   = make_loader(val_idx)
+    test_loader  = make_loader(test_idx)
+    
     
     # == debug first batch =====================================================
     print("Debug — checking first batch...")

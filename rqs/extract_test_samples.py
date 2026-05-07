@@ -6,7 +6,7 @@ from metavision_sdk_core import MostRecentTimestampBuffer
 from dotenv import load_dotenv
 import os
 
-load_dotenv(Path(__file__).parent / '.env')
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 RECORDINGS_DIR             = Path(os.getenv("RECORDINGS_DIR"))
 DIR                        = os.getenv("DIR")
@@ -150,10 +150,16 @@ def load_recording(folder: Path):
     return np.concatenate(chunks), t_initial
 
 
-def extract_window(all_events, t_start_us, duration_ms, repr_fn):
+def extract_window(all_events, t_start_us, duration_ms, repr_fn, min_events=100):
     t_end_us = t_start_us + duration_ms * 1_000
     mask = (all_events['t'] >= t_start_us) & (all_events['t'] < t_end_us)
-    return repr_fn(all_events[mask])
+    window_events = all_events[mask]
+    
+    # Skip if too few events (match training extraction logic)
+    if len(window_events) < min_events:
+        return None  # Will need to handle this in main loop
+    
+    return repr_fn(window_events)
 
 
 # == main ======================================================================
@@ -201,17 +207,21 @@ if __name__ == "__main__":
             continue
 
         for dur_ms in RQ1_DURATIONS_MS:
-            rq1_data.append(extract_window(all_events, t_initial, dur_ms, repr_fn))
-            rq1_labels.append(label)
-            rq1_durations.append(dur_ms)
-            rq1_recids.append(rec_id)
+            sample = extract_window(all_events, t_initial, dur_ms, repr_fn, min_events=100)
+            if sample is not None:  # ← ADD THIS CHECK
+                rq1_data.append(sample)
+                rq1_labels.append(label)
+                rq1_durations.append(dur_ms)
+                rq1_recids.append(rec_id)
 
         for off_ms in RQ2_OFFSETS_MS:
             t_start = t_initial + off_ms * 1_000
-            rq2_data.append(extract_window(all_events, t_start, RQ2_DURATION_MS, repr_fn))
-            rq2_labels.append(label)
-            rq2_offsets.append(off_ms)
-            rq2_recids.append(rec_id)
+            sample = extract_window(all_events, t_start, RQ2_DURATION_MS, repr_fn, min_events=100)
+            if sample is not None:  # ← ADD THIS CHECK
+                rq2_data.append(sample)
+                rq2_labels.append(label)
+                rq2_offsets.append(off_ms)
+                rq2_recids.append(rec_id)
 
         print(f"  RQ1: {len(RQ1_DURATIONS_MS)} | RQ2: {len(RQ2_OFFSETS_MS)}")
 
