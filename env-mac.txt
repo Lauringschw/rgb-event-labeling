@@ -5,15 +5,14 @@ T7=/Volumes/T7/thesis
 RECORDINGS_DIR=/Volumes/T7/thesis/recordings
 DIR=recording_session_1
 
-# == Sliding window batch files (don't need on Mac) ============================
-SLIDING_DIR=/Volumes/T7/thesis/sliding_window/batches
-SLIDING_DIR_TIME=/Volumes/T7/thesis/sliding_window_time_50ms/batches
+# == Sliding window — base dir (window subdir appended automatically) ===========
+# Structure: SLIDING_BASE/{window_ms}ms/batches/   <- extraction output
+#            SLIDING_BASE/{window_ms}ms/merged/    <- merge output + model weights
+SLIDING_BASE=/Volumes/T7/thesis/sliding_window_time/histogram
+# SLIDING_BASE=/Volumes/T7/thesis/sliding_window_time/voxel
+# SLIDING_BASE=/Volumes/T7/thesis/sliding_window_time/timesurface
 
-# == Merged training dataset (READ from here for training) =====================
-SLIDING_DIR_T7=/Volumes/T7/thesis/sliding_window/merged
-SLIDING_DIR_T7_TIME=/Volumes/T7/thesis/sliding_window_time_50ms/merged
-
-# == Model weights (saved during training) =====================================
+# == Model weights (saved during training, inside SLIDING_BASE per window) ======
 MODEL_DIR=/Volumes/T7/thesis/models
 
 # == Test samples + results ====================================================
