@@ -15,7 +15,3 @@ SLIDING_BASE=/media/lau/T7/thesis/sliding_window_time/histogram
 # == Model weights =============================================================
 MODEL_DIR=/media/lau/T7/thesis/models
 
-# == Test samples + results ====================================================
-OUTPUT_DIR=/media/lau/T7/thesis
-TEST_DIR=/media/lau/T7/thesis/test_samples
-RESULTS_DIR=/media/lau/T7/thesis/results

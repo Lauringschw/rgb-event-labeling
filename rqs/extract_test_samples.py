@@ -10,14 +10,14 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 RECORDINGS_DIR             = Path(os.getenv("RECORDINGS_DIR"))
 DIR                        = os.getenv("DIR")
-OUTPUT_DIR                 = Path(os.getenv("OUTPUT_DIR"))
+SLIDING_BASE               = Path(os.getenv("SLIDING_BASE"))
 
 SENSOR_HEIGHT              = 360
 SENSOR_WIDTH               = 640
 ORIG_HEIGHT                = 720
 ORIG_WIDTH                 = 1280
 N_BINS                     = 5
-MAX_RECORDINGS_PER_GESTURE = 400
+MAX_RECORDINGS_PER_GESTURE = 320
 
 # RQ2 offsets are fixed regardless of window size
 RQ2_OFFSETS_MS = [0, 20, 40, 60, 80, 100]
@@ -146,18 +146,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     repr_fn  = REPR_FN[args.repr]
-    TEST_DIR = OUTPUT_DIR / "test_samples" / args.repr / f"{args.window_ms}ms"
+    TEST_DIR = SLIDING_BASE / f"{args.window_ms}ms" / "test_samples"
     TEST_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 55)
     print(f"TEST EXTRACTION — {args.repr} | {args.window_ms}ms window (RQ1 + RQ2)")
     print("=" * 55)
 
-    test_ids_path = OUTPUT_DIR / "test_recording_ids.npy"
+    test_ids_path = SLIDING_BASE / "test_recording_ids.npy"
     if not test_ids_path.exists():
         raise FileNotFoundError(
             f"Missing: {test_ids_path}\n"
-            f"Run train_histogram.py --window_ms 30 first to generate the split.")
+            f"Run train_histogram.py --window_ms <any> first to generate the split.")
 
     test_rec_ids   = np.load(test_ids_path)
     rec_id_to_info = build_rec_id_map()

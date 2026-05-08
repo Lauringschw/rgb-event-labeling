@@ -9,7 +9,7 @@ from torchvision import models
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
-OUTPUT_DIR   = Path(os.getenv("OUTPUT_DIR"))
+
 SLIDING_BASE = Path(os.getenv("SLIDING_BASE"))
 
 RQ2_OFFSETS_MS  = [0, 20, 40, 60, 80, 100]
@@ -86,8 +86,7 @@ def get_model_path(repr_name: str, window_ms: int) -> Path:
     if repr_name == 'histogram':
         return SLIDING_BASE / f"{window_ms}ms" / "merged" / f"model_histogram_{window_ms}ms_best.pth"
     else:
-        # voxel and timesurface: stored under OUTPUT_DIR (adjust if you move them)
-        return OUTPUT_DIR / "models" / repr_name / f"model_{repr_name}_{window_ms}ms_best.pth"
+        return SLIDING_BASE / f"{window_ms}ms" / "merged" / f"model_{repr_name}_{window_ms}ms_best.pth"
 
 
 # == normalisation =============================================================
@@ -229,8 +228,8 @@ if __name__ == "__main__":
                         help='Window duration in ms — must match extracted test samples')
     args = parser.parse_args()
 
-    TEST_DIR    = OUTPUT_DIR / "test_samples" / args.repr / f"{args.window_ms}ms"
-    RESULTS_DIR = OUTPUT_DIR / "results" / args.repr / f"{args.window_ms}ms"
+    TEST_DIR    = SLIDING_BASE / f"{args.window_ms}ms" / "test_samples"
+    RESULTS_DIR = SLIDING_BASE / f"{args.window_ms}ms" / "results"
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 55)

@@ -14,7 +14,6 @@ from sklearn.model_selection import train_test_split
 load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 SLIDING_BASE = Path(os.getenv("SLIDING_BASE"))
-OUTPUT_DIR   = Path(os.getenv("OUTPUT_DIR"))
 
 SEED = 42
 
@@ -131,7 +130,6 @@ if __name__ == "__main__":
     seed_everything(SEED)
 
     MERGED_DIR = SLIDING_BASE / f"{args.window_ms}ms" / "merged"
-    MODEL_DIR  = SLIDING_BASE / f"{args.window_ms}ms" / "merged"  # save model alongside data
 
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -163,25 +161,12 @@ if __name__ == "__main__":
     print(f"Data shape: {raw_data.shape}")
 
     # == split =================================================================
-    # For the 30ms model: derive split and SAVE test_recording_ids.npy
-    # For all other models: reuse the existing test_recording_ids.npy
-    test_ids_path = OUTPUT_DIR / "test_recording_ids.npy"
+    # Fixed seeds ensure identical split across all window sizes
+    recs_train, recs_val, recs_test = get_split(raw_labels, recording_ids)
 
-    if args.window_ms == 30 or not test_ids_path.exists():
-        recs_train, recs_val, recs_test = get_split(raw_labels, recording_ids)
-        np.save(test_ids_path, recs_test)
-        print(f"{'Saved' if args.window_ms == 30 else 'Generated'} test recording IDs: {test_ids_path}")
-    else:
-        recs_test  = np.load(test_ids_path)
-        unique_recs = np.unique(recording_ids)
-        rec_labels  = np.array([raw_labels[recording_ids == r][0] for r in unique_recs])
-        # derive train/val from remaining recordings
-        remaining_recs   = unique_recs[~np.isin(unique_recs, recs_test)]
-        remaining_labels = np.array([raw_labels[recording_ids == r][0] for r in remaining_recs])
-        val_frac = 0.10 / 0.80   # 10% of total out of the 80% non-test
-        recs_train, recs_val, _, _ = train_test_split(
-            remaining_recs, remaining_labels, test_size=val_frac, random_state=123, stratify=remaining_labels)
-        print(f"Reused test recording IDs from: {test_ids_path}")
+    test_ids_path = SLIDING_BASE / "test_recording_ids.npy"
+    np.save(test_ids_path, recs_test)
+    print(f"Saved test recording IDs: {test_ids_path}")
 
     train_mask = np.isin(recording_ids, recs_train)
     val_mask   = np.isin(recording_ids, recs_val)
@@ -224,7 +209,7 @@ if __name__ == "__main__":
 
     best_val_acc      = 0.0
     epochs_no_improve = 0
-    model_path        = MODEL_DIR / f'model_histogram_{args.window_ms}ms_best.pth'
+    model_path        = MERGED_DIR / f'model_histogram_{args.window_ms}ms_best.pth'
 
     print("=" * 50)
     print(f"Training — {args.window_ms}ms window")
@@ -256,11 +241,11 @@ if __name__ == "__main__":
     test_loss, test_acc = evaluate(model, test_loader, criterion, device)
     print(f"Test acc : {test_acc:.2f}%   (best val: {best_val_acc:.2f}%)")
 
-    metrics_path = MODEL_DIR / f'metrics_{args.window_ms}ms.txt'
+    metrics_path = MERGED_DIR / f'metrics_{args.window_ms}ms.txt'
     with open(metrics_path, 'w') as f:
         f.write(f"Window          : {args.window_ms}ms\n")
         f.write(f"Best val acc    : {best_val_acc:.2f}%\n")
         f.write(f"Test acc        : {test_acc:.2f}%\n")
         f.write(f"Test loss       : {test_loss:.4f}\n")
     print(f"Metrics saved   : {metrics_path}")
-    print(f"Next step: python3 extract_test_samples.py --window_ms {args.window_ms}")
+    print(f"Next step: python3 extract_test_samples.py --repr histogram --window_ms {args.window_ms}")

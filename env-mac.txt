@@ -14,8 +14,3 @@ SLIDING_BASE=/Volumes/T7/thesis/sliding_window_time/histogram
 
 # == Model weights (saved during training, inside SLIDING_BASE per window) ======
 MODEL_DIR=/Volumes/T7/thesis/models
-
-# == Test samples + results ====================================================
-OUTPUT_DIR=/Volumes/T7/thesis
-TEST_DIR=/Volumes/T7/thesis/test_samples
-RESULTS_DIR=/Volumes/T7/thesis/results
