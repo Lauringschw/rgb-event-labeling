@@ -5,49 +5,30 @@ import numpy as np
 from pathlib import Path
 import os
 from dotenv import load_dotenv
-
 from torchvision import models
 
 load_dotenv(Path(__file__).parent.parent / '.env')
 
-OUTPUT_DIR       = Path(os.getenv("OUTPUT_DIR"))
-SLIDING_DIR_T7_TIME = Path(os.getenv("SLIDING_DIR_T7_TIME"))
+OUTPUT_DIR   = Path(os.getenv("OUTPUT_DIR"))
+SLIDING_BASE = Path(os.getenv("SLIDING_BASE"))
 
-RQ1_DURATIONS_MS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-RQ2_OFFSETS_MS   = [0, 20, 40, 60, 80, 100]
-RQ2_DURATION_MS  = 30
-N_BINS           = 5
+RQ2_OFFSETS_MS  = [0, 20, 40, 60, 80, 100]
+N_BINS          = 5
 LABEL_TO_GESTURE = {0: 'rock', 1: 'paper', 2: 'scissor'}
 
 
 # == models ====================================================================
 
-
 class ResNet18Histogram(nn.Module):
-    """ResNet-18 adapted for 2-channel histogram input"""
-    def __init__(self, num_classes=3, pretrained=False):
+    def __init__(self, num_classes=3):
         super().__init__()
-        
-        # Load ResNet-18
-        self.resnet = models.resnet18(pretrained=pretrained)
-        
-        # Modify first conv layer: 3 channels -> 2 channels
-        original_conv1 = self.resnet.conv1
-        self.resnet.conv1 = nn.Conv2d(
-            2,  # 2 input channels (ON/OFF polarities)
-            64,
-            kernel_size=7,
-            stride=2,
-            padding=3,
-            bias=False
-        )
-        
-        # Modify final fully connected layer: 1000 classes -> 3 classes
-        num_ftrs = self.resnet.fc.in_features
-        self.resnet.fc = nn.Linear(num_ftrs, num_classes)
-    
+        self.resnet = models.resnet18(pretrained=False)
+        self.resnet.conv1 = nn.Conv2d(2, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, num_classes)
+
     def forward(self, x):
         return self.resnet(x)
+
 
 class HistogramCNN(nn.Module):
     def __init__(self):
@@ -58,8 +39,7 @@ class HistogramCNN(nn.Module):
             nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         )
         self.classifier = nn.Sequential(
-            nn.Flatten(), nn.Linear(128*45*80, 256),
-            nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, 3))
+            nn.Flatten(), nn.Linear(128*45*80, 256), nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, 3))
 
     def forward(self, x):
         return self.classifier(self.features(x))
@@ -74,8 +54,7 @@ class VoxelCNN(nn.Module):
             nn.Conv2d(64,    128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         )
         self.classifier = nn.Sequential(
-            nn.Flatten(), nn.Linear(128*45*80, 256),
-            nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, 3))
+            nn.Flatten(), nn.Linear(128*45*80, 256), nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, 3))
 
     def forward(self, x):
         return self.classifier(self.features(x))
@@ -90,36 +69,32 @@ class TimeSurfaceCNN(nn.Module):
             nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
         )
         self.classifier = nn.Sequential(
-            nn.Flatten(), nn.Linear(128*45*80, 256),
-            nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, 3))
+            nn.Flatten(), nn.Linear(128*45*80, 256), nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, 3))
 
     def forward(self, x):
         return self.classifier(self.features(x))
 
 
 MODEL_CLS = {
-    'histogram':   ResNet18Histogram, 
+    'histogram':   ResNet18Histogram,
     'voxel':       VoxelCNN,
     'timesurface': TimeSurfaceCNN,
 }
 
-# Model paths relative to OUTPUT_DIR
-MODEL_FILE = {
-    'histogram':   SLIDING_DIR_T7_TIME / 'model_histogram_time_resnet18_best.pth',
-    'voxel':       'model_voxel_best.pth',
-    'timesurface': 'model_timesurface_best.pth',
-}
+
+def get_model_path(repr_name: str, window_ms: int) -> Path:
+    if repr_name == 'histogram':
+        return SLIDING_BASE / f"{window_ms}ms" / "merged" / f"model_histogram_{window_ms}ms_best.pth"
+    else:
+        # voxel and timesurface: stored under OUTPUT_DIR (adjust if you move them)
+        return OUTPUT_DIR / "models" / repr_name / f"model_{repr_name}_{window_ms}ms_best.pth"
 
 
-# == normalisation per repr ====================================================
+# == normalisation =============================================================
 
 def normalize(batch, repr_name):
-    """Normalize batch in-place. Voxel uses abs max, others use max."""
     for j in range(len(batch)):
-        if repr_name == 'voxel':
-            max_val = np.abs(batch[j]).max()
-        else:
-            max_val = batch[j].max()
+        max_val = np.abs(batch[j]).max() if repr_name == 'voxel' else batch[j].max()
         if max_val > 0:
             batch[j] /= max_val
     return batch
@@ -153,51 +128,47 @@ def accuracy(preds, labels):
 
 
 def per_class_acc(preds, labels):
-    return {LABEL_TO_GESTURE[i]: 100.0 * np.mean(preds[labels == i] == i)
-            for i in range(3)}
+    return {LABEL_TO_GESTURE[i]: 100.0 * np.mean(preds[labels == i] == i) for i in range(3)}
 
 
 # == RQ1 =======================================================================
 
-def evaluate_rq1(model, device, repr_name, test_dir, results_dir):
+def evaluate_rq1(model, device, repr_name, window_ms, test_dir, results_dir):
+    """
+    RQ1 for this window_ms: single accuracy value at the trained window size.
+    One model = one data point in the RQ1 curve.
+    """
     print("\n" + "=" * 55)
-    print("RQ1 — Window Length Effect")
+    print(f"RQ1 — {window_ms}ms model accuracy")
     print("=" * 55)
 
-    data      = np.load(test_dir / "rq1_data.npy")
-    labels    = np.load(test_dir / "rq1_labels.npy")
-    durations = np.load(test_dir / "rq1_durations_ms.npy")
+    data   = np.load(test_dir / "rq1_data.npy")
+    labels = np.load(test_dir / "rq1_labels.npy")
 
-    results = {}
-    lines   = [f"RQ1 — Window Length Effect ({repr_name})"]
-    header  = f"{'Duration':>10}  {'Overall':>8}  {'Rock':>8}  {'Paper':>8}  {'Scissor':>8}"
-    print(header)
-    print("-" * len(header))
-    lines.append(header)
+    preds   = run_inference(model, data, device, repr_name)
+    overall = accuracy(preds, labels)
+    pc      = per_class_acc(preds, labels)
 
-    for dur in RQ1_DURATIONS_MS:
-        mask    = durations == dur
-        preds   = run_inference(model, data[mask], device, repr_name)
-        overall = accuracy(preds, labels[mask])
-        pc      = per_class_acc(preds, labels[mask])
-        results[dur] = overall
-        line = (f"{dur:>8}ms  {overall:>7.2f}%"
-                f"  {pc['rock']:>7.2f}%  {pc['paper']:>7.2f}%  {pc['scissor']:>7.2f}%")
-        print(line)
-        lines.append(line)
+    line = (f"window={window_ms}ms  overall={overall:.2f}%  "
+            f"rock={pc['rock']:.2f}%  paper={pc['paper']:.2f}%  scissor={pc['scissor']:.2f}%")
+    print(line)
 
-    np.save(results_dir / "rq1_accuracies.npy",   np.array([results[d] for d in RQ1_DURATIONS_MS]))
-    np.save(results_dir / "rq1_durations_ms.npy",  np.array(RQ1_DURATIONS_MS))
-    (results_dir / "rq1_results.txt").write_text("\n".join(lines) + "\n")
-    print(f"\nSaved -> {results_dir}/rq1_*")
-    return results
+    np.save(results_dir / "rq1_accuracy.npy",    np.array([overall]))
+    np.save(results_dir / "rq1_window_ms.npy",   np.array([window_ms]))
+    (results_dir / "rq1_result.txt").write_text(f"RQ1 — {repr_name} {window_ms}ms\n{line}\n")
+    print(f"Saved -> {results_dir}/rq1_*")
+    return overall
 
 
 # == RQ2 =======================================================================
 
-def evaluate_rq2(model, device, repr_name, test_dir, results_dir):
+def evaluate_rq2(model, device, repr_name, window_ms, test_dir, results_dir):
+    """
+    RQ2: accuracy of this window_ms model across offsets 0, 20, 40, 60, 80, 100ms.
+    Window = [t_initial + offset, t_initial + offset + window_ms].
+    """
     print("\n" + "=" * 55)
-    print("RQ2 — Temporal Landmark Effect")
+    print(f"RQ2 — {window_ms}ms model, temporal offset effect")
     print("=" * 55)
 
     data    = np.load(test_dir / "rq2_data.npy")
@@ -205,26 +176,29 @@ def evaluate_rq2(model, device, repr_name, test_dir, results_dir):
     offsets = np.load(test_dir / "rq2_offsets_ms.npy")
 
     results = {}
-    lines   = [f"RQ2 — Temporal Landmark Effect ({repr_name})"]
-    header  = f"{'Offset':>10}  {'Window':>14}  {'Overall':>8}  {'Rock':>8}  {'Paper':>8}  {'Scissor':>8}"
+    lines   = [f"RQ2 — {repr_name} {window_ms}ms window"]
+    header  = f"{'Offset':>10}  {'Window':>20}  {'Overall':>8}  {'Rock':>8}  {'Paper':>8}  {'Scissor':>8}"
     print(header)
     print("-" * len(header))
     lines.append(header)
 
     for off in RQ2_OFFSETS_MS:
         mask    = offsets == off
+        if not np.any(mask):
+            continue
         preds   = run_inference(model, data[mask], device, repr_name)
         overall = accuracy(preds, labels[mask])
         pc      = per_class_acc(preds, labels[mask])
         results[off] = overall
-        line = (f"{off:>8}ms  {f't+{off}-{off+RQ2_DURATION_MS}ms':>14}"
-                f"  {overall:>7.2f}%"
+        window_label = f"t+{off}-{off+window_ms}ms"
+        line = (f"{off:>8}ms  {window_label:>20}  {overall:>7.2f}%"
                 f"  {pc['rock']:>7.2f}%  {pc['paper']:>7.2f}%  {pc['scissor']:>7.2f}%")
         print(line)
         lines.append(line)
 
-    np.save(results_dir / "rq2_accuracies.npy",  np.array([results[o] for o in RQ2_OFFSETS_MS]))
-    np.save(results_dir / "rq2_offsets_ms.npy",  np.array(RQ2_OFFSETS_MS))
+    offsets_out = [o for o in RQ2_OFFSETS_MS if o in results]
+    np.save(results_dir / "rq2_accuracies.npy", np.array([results[o] for o in offsets_out]))
+    np.save(results_dir / "rq2_offsets_ms.npy", np.array(offsets_out))
     (results_dir / "rq2_results.txt").write_text("\n".join(lines) + "\n")
     print(f"\nSaved -> {results_dir}/rq2_*")
     return results
@@ -232,15 +206,17 @@ def evaluate_rq2(model, device, repr_name, test_dir, results_dir):
 
 # == RQ3 =======================================================================
 
-def evaluate_rq3(rq1_results, repr_name, results_dir):
+def evaluate_rq3(rq1_acc, repr_name, window_ms, results_dir):
+    """RQ3: accuracy at 30ms baseline (only meaningful when window_ms == 30)."""
+    if window_ms != 30:
+        return
     print("\n" + "=" * 55)
-    print(f"RQ3 — Representation Comparison ({repr_name})")
+    print(f"RQ3 — {repr_name} at 30ms baseline")
     print("=" * 55)
-    acc_30ms = rq1_results[30]
-    print(f"Accuracy at τ=0, Δt=30ms: {acc_30ms:.2f}%")
-    np.save(results_dir / f"rq3_{repr_name}_acc_30ms.npy", np.array([acc_30ms]))
+    print(f"Accuracy: {rq1_acc:.2f}%")
+    np.save(results_dir / f"rq3_{repr_name}_acc_30ms.npy", np.array([rq1_acc]))
     (results_dir / f"rq3_{repr_name}_result.txt").write_text(
-        f"RQ3 — {repr_name} at τ=0, Δt=30ms\n{acc_30ms:.4f}\n")
+        f"RQ3 — {repr_name} at τ=0, Δt=30ms\n{rq1_acc:.4f}\n")
     print(f"Saved -> {results_dir}/rq3_{repr_name}_*")
 
 
@@ -248,41 +224,42 @@ def evaluate_rq3(rq1_results, repr_name, results_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--repr', required=True,
-                        choices=['histogram', 'voxel', 'timesurface'],
-                        help='Event representation to evaluate')
+    parser.add_argument('--repr', required=True, choices=['histogram', 'voxel', 'timesurface'])
+    parser.add_argument('--window_ms', type=int, required=True,
+                        help='Window duration in ms — must match extracted test samples')
     args = parser.parse_args()
 
-    TEST_DIR    = OUTPUT_DIR / "test_samples" / args.repr
-    RESULTS_DIR = OUTPUT_DIR / "results" / args.repr
+    TEST_DIR    = OUTPUT_DIR / "test_samples" / args.repr / f"{args.window_ms}ms"
+    RESULTS_DIR = OUTPUT_DIR / "results" / args.repr / f"{args.window_ms}ms"
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 55)
-    print(f"EVALUATION — {args.repr} CNN (RQ1 + RQ2 + RQ3)")
+    print(f"EVALUATION — {args.repr} | {args.window_ms}ms (RQ1 + RQ2 + RQ3)")
     print("=" * 55)
 
     device = get_device()
     print(f"\nDevice: {device}")
 
-    model_path = MODEL_FILE[args.repr]
+    model_path = get_model_path(args.repr, args.window_ms)
     if not model_path.exists():
-        raise FileNotFoundError(f"Model not found: {model_path}")
+        raise FileNotFoundError(
+            f"Model not found: {model_path}\n"
+            f"Run train_histogram.py --window_ms {args.window_ms} first.")
 
     model = MODEL_CLS[args.repr]().to(device)
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.eval()
     print(f"Model loaded: {model_path}\n")
 
-    for fname in ["rq1_data.npy", "rq1_labels.npy", "rq1_durations_ms.npy",
-                  "rq2_data.npy", "rq2_labels.npy", "rq2_offsets_ms.npy"]:
+    for fname in ["rq1_data.npy", "rq1_labels.npy", "rq2_data.npy", "rq2_labels.npy", "rq2_offsets_ms.npy"]:
         if not (TEST_DIR / fname).exists():
             raise FileNotFoundError(
                 f"Missing: {TEST_DIR / fname}\n"
-                f"Run: python3 extract_test_samples.py --repr {args.repr}")
+                f"Run: python3 extract_test_samples.py --repr {args.repr} --window_ms {args.window_ms}")
 
-    rq1_results = evaluate_rq1(model, device, args.repr, TEST_DIR, RESULTS_DIR)
-    rq2_results = evaluate_rq2(model, device, args.repr, TEST_DIR, RESULTS_DIR)
-    evaluate_rq3(rq1_results, args.repr, RESULTS_DIR)
+    rq1_acc = evaluate_rq1(model, device, args.repr, args.window_ms, TEST_DIR, RESULTS_DIR)
+    evaluate_rq2(model, device, args.repr, args.window_ms, TEST_DIR, RESULTS_DIR)
+    evaluate_rq3(rq1_acc, args.repr, args.window_ms, RESULTS_DIR)
 
     print("\n" + "=" * 55)
     print(f"COMPLETE — results: {RESULTS_DIR}")
