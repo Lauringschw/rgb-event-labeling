@@ -223,7 +223,7 @@ if __name__ == "__main__":
             f"Run train_histogram.py --window_ms {args.window_ms} first.")
 
     model = MODEL_CLS[args.repr]().to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+    model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Model loaded: {model_path}\n")
 
