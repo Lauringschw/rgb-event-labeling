@@ -30,55 +30,32 @@ class ResNet18Histogram(nn.Module):
         return self.resnet(x)
 
 
-class HistogramCNN(nn.Module):
-    def __init__(self):
+class ResNet18Voxel(nn.Module):
+    def __init__(self, num_classes=3):
         super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(2,  32, kernel_size=5, padding=2), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(), nn.Linear(128*45*80, 256), nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, 3))
+        self.resnet = models.resnet18(pretrained=False)
+        self.resnet.conv1 = nn.Conv2d(N_BINS, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, num_classes)
 
     def forward(self, x):
-        return self.classifier(self.features(x))
+        return self.resnet(x)
 
 
-class VoxelCNN(nn.Module):
-    def __init__(self):
+class ResNet18TimeSurface(nn.Module):
+    def __init__(self, num_classes=3):
         super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(N_BINS, 32, kernel_size=5, padding=2), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32,     64, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64,    128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(), nn.Linear(128*45*80, 256), nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, 3))
+        self.resnet = models.resnet18(pretrained=False)
+        self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, num_classes)
 
     def forward(self, x):
-        return self.classifier(self.features(x))
-
-
-class TimeSurfaceCNN(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1,  32, kernel_size=5, padding=2), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(), nn.Linear(128*45*80, 256), nn.ReLU(), nn.Dropout(0.5), nn.Linear(256, 3))
-
-    def forward(self, x):
-        return self.classifier(self.features(x))
+        return self.resnet(x)
 
 
 MODEL_CLS = {
     'histogram':   ResNet18Histogram,
-    'voxel':       VoxelCNN,
-    'timesurface': TimeSurfaceCNN,
+    'voxel':       ResNet18Voxel,
+    'timesurface': ResNet18TimeSurface,
 }
 
 

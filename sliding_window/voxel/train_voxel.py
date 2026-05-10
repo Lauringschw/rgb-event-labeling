@@ -9,6 +9,7 @@ import os
 import random
 from dotenv import load_dotenv
 from sklearn.model_selection import train_test_split
+from torchvision import models
 
 load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
@@ -57,24 +58,15 @@ class MmapVoxelDataset(Dataset):
 
 # == model =====================================================================
 
-class VoxelCNN(nn.Module):
-    def __init__(self, n_bins=N_BINS):
+class ResNet18Voxel(nn.Module):
+    def __init__(self, num_classes=3, n_bins=N_BINS):
         super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(n_bins, 32, kernel_size=5, padding=2), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32,     64, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64,    128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(128 * 45 * 80, 256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 3),
-        )
+        self.resnet = models.resnet18(pretrained=False)
+        self.resnet.conv1 = nn.Conv2d(n_bins, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, num_classes)
 
     def forward(self, x):
-        return self.classifier(self.features(x))
+        return self.resnet(x)
 
 
 # == split (recording-level) ===================================================
@@ -147,7 +139,7 @@ if __name__ == "__main__":
         device = torch.device('cpu')
 
     print("=" * 60)
-    print(f"TRAINING: {args.window_ms}ms Voxel Model (CNN)")
+    print(f"TRAINING: {args.window_ms}ms Voxel Model (ResNet-18)")
     print("=" * 60)
     print(f"Device     : {device}")
     print(f"Merged dir : {MERGED_DIR}\n")
@@ -199,7 +191,7 @@ if __name__ == "__main__":
     test_loader  = make_loader(test_idx)
 
     # == model =================================================================
-    model = VoxelCNN(n_bins=N_BINS).to(device)
+    model = ResNet18Voxel(n_bins=N_BINS).to(device)
 
     class_counts  = np.array([np.sum(raw_labels[train_idx] == i) for i in range(3)])
     class_weights = torch.FloatTensor(1.0 / class_counts) * 3
@@ -245,7 +237,7 @@ if __name__ == "__main__":
 
     # == test ==================================================================
     print("\n" + "=" * 50)
-    model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+    model.load_state_dict(torch.load(model_path, map_location=device))
     test_loss, test_acc = evaluate(model, test_loader, criterion, device)
     print(f"Test acc : {test_acc:.2f}%   (best val: {best_val_acc:.2f}%)")
 
