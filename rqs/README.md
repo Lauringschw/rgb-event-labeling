@@ -1,90 +1,83 @@
 # rqs
 
-Two scripts for extracting test samples and evaluating trained CNNs on all three research questions, for any event representation.
+Two scripts for RQ evaluation: test sample extraction and inference across all three research questions.
 
 ## Order of execution
 
 ```
-1. extract_test_samples.py --repr <representation>
-2. evaluate.py --repr <representation>
+1. extract_test_samples.py  --repr <repr> --window_ms <N>
+2. evaluate.py              --repr <repr> --window_ms <N>
 ```
 
-Supported representations: `histogram`, `voxel`, `timesurface`
+Run both scripts once per representation × window size combination.
 
 ---
 
 ## extract_test_samples.py
 
-Extracts fixed-time-window test samples from raw recordings for RQ1 and RQ2.
+Extracts fixed-position test windows from held-out recordings for RQ1 and RQ2 evaluation.
 
-**Input**
+**Prerequisites**
 
-- Raw recordings from `RECORDINGS_DIR/DIR/`
-- `test_recording_ids.npy` from `OUTPUT_DIR/` (saved by extraction pipeline to define the split)
+- `SLIDING_BASE/test_recording_ids.npy` must exist (saved by any `train_<repr>.py` run)
+- Raw recordings must be accessible at `RECORDINGS_DIR/DIR`
 
-**How test recordings are identified**
-Loads the test recording IDs saved during training extraction. Guarantees zero overlap with training data.
+**RQ1 samples**
+One window per recording: `[t_initial, t_initial + window_ms]`
 
-**RQ1 — Window Length Effect**
-For each test recording: 10 windows of varying duration starting at t_initial.
-Durations: 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 ms
-
-**RQ2 — Temporal Landmark Effect**
-For each test recording: 6 windows of fixed 30ms duration at varying offsets from t_initial.
+**RQ2 samples**
+Six windows per recording, one per offset: `[t_initial + offset, t_initial + offset + window_ms]`
 Offsets: 0, 20, 40, 60, 80, 100 ms
 
-**RQ3**
-No extra extraction needed. evaluate.py reuses the RQ1 30ms window.
+**Filter**
+Windows with fewer than 100 events are skipped (matching training extraction).
 
-**Output** (saved to `OUTPUT_DIR/test_samples/<repr>/`)
+**Supported representations**
+
+| `--repr`      | Channels | Encoding                                     |
+| ------------- | -------- | -------------------------------------------- |
+| `histogram`   | 2        | ON/OFF event counts                          |
+| `voxel`       | 5        | Signed polarity weights across temporal bins |
+| `timesurface` | 1        | Normalised most-recent-timestamp per pixel   |
+
+**Output** (saved to `SLIDING_BASE/<window_ms>ms/test_samples/`)
 
 ```
-rq1_data.npy              float32  (N_test×10, C, 360, 640)
-rq1_labels.npy            int64    (N_test×10,)
-rq1_durations_ms.npy      int64    (N_test×10,)
-rq1_recording_ids.npy     int64    (N_test×10,)
+rq1_data.npy                float32  (N, C, 360, 640)
+rq1_labels.npy              int64    (N,)
+rq1_recording_ids.npy       int64    (N,)
 
-rq2_data.npy              float32  (N_test×6, C, 360, 640)
-rq2_labels.npy            int64    (N_test×6,)
-rq2_offsets_ms.npy        int64    (N_test×6,)
-rq2_recording_ids.npy     int64    (N_test×6,)
+rq2_data.npy                float32  (M, C, 360, 640)
+rq2_labels.npy              int64    (M,)
+rq2_offsets_ms.npy          int64    (M,)   offset for each sample
+rq2_recording_ids.npy       int64    (M,)
 ```
-
-Where C = 2 (histogram), 5 (voxel), 1 (timesurface).
 
 ---
 
 ## evaluate.py
 
-Loads the trained model and test samples, runs inference, reports accuracy.
+Loads a trained model and evaluates it on the extracted test samples for RQ1, RQ2, and RQ3.
 
-**Input**
+**RQ1** — accuracy of the `window_ms` model on its matched test window (one data point per model in the RQ1 curve)
 
-- Model weights from `OUTPUT_DIR/` — filename depends on representation
-- Test sample files from `OUTPUT_DIR/test_samples/<repr>/`
+**RQ2** — accuracy of the `window_ms` model across all six temporal offsets (0–100ms)
 
-**RQ1 output**
-Accuracy per window duration (10 values). Reported overall and per class.
+**RQ3** — accuracy at the 30ms baseline; only runs when `--window_ms 30`
 
-**RQ2 output**
-Accuracy per temporal offset (6 values). Reported overall and per class.
-
-**RQ3 output**
-Accuracy at τ=0, Δt=30ms, sliced from RQ1 results. Saved for cross-representation comparison.
-
-**Output** (saved to `OUTPUT_DIR/results/<repr>/`)
+**Output** (saved to `SLIDING_BASE/<window_ms>ms/results/`)
 
 ```
-rq1_accuracies.npy              float64  (10,)
-rq1_durations_ms.npy            int64    (10,)
-rq1_results.txt
+rq1_accuracy.npy            float64  (1,)
+rq1_window_ms.npy           int64    (1,)
+rq1_result.txt
 
-rq2_accuracies.npy              float64  (6,)
-rq2_offsets_ms.npy              int64    (6,)
+rq2_accuracies.npy          float64  (6,)
+rq2_offsets_ms.npy          int64    (6,)
 rq2_results.txt
 
-rq3_<repr>_acc_30ms.npy         float64  (1,)
-rq3_<repr>_result.txt
+rq3_<repr>_acc_30ms.npy     float64  (1,)   only when window_ms == 30
+rq3_<repr>_result.txt       only when window_ms == 30
 ```
 
 ---
@@ -92,7 +85,8 @@ rq3_<repr>_result.txt
 ## .env variables required
 
 ```
-RECORDINGS_DIR=   path to drive containing gesture recording folders
-DIR=              subfolder name e.g. trial2
-OUTPUT_DIR=       all outputs go here (train data, model weights, test samples, results)
+RECORDINGS_DIR=   path to root folder containing gesture subfolders
+DIR=              recording session subfolder (e.g. recording_session_1)
+SLIDING_BASE=     base dir for the representation being evaluated
+                  e.g. /Volumes/T7/thesis/sliding_window_time/histogram
 ```
