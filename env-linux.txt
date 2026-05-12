@@ -10,7 +10,7 @@ DIR=trial2
 # == Sliding window (base — repr and window size appended automatically) ========
 # Structure: SLIDING_BASE/{10ms,20ms,...}/batches/
 #            SLIDING_BASE/{10ms,20ms,...}/merged/
-SLIDING_BASE=/media/lau/T7/thesis/sliding_window_time/histogram
+SLIDING_BASE=/media/lau/T7/thesis/sliding_window_time/timesurface
 
 # == Model weights =============================================================
 MODEL_DIR=/media/lau/T7/thesis/models

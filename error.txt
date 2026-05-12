@@ -1,12 +1,3 @@
-lau@lau:~/Desktop/rgb-event-labeling$ python3 sliding_window/timesurface/extract_samples_timesurface.py --window_ms 70; python3 sliding_window/timesurface/merge_timesurface.py --window_ms 70
-============================================================
-TIME SURFACE EXTRACTION (70ms windows, 50% overlap)
-============================================================
-Window duration : 70 ms
-Stride          : 35 ms
-Output dir      : /media/lau/T7/thesis/sliding_window_time/timesurface/70ms/batches
-
-
 rock/r_1  (rec_id=0)
 Traceback (most recent call last):
   File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 168, in <module>
@@ -19,6 +10,11 @@ Traceback (most recent call last):
     samples.append(events_to_timesurface(window_events))
                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 50, in events_to_timesurface
-    ts_buffer.generate(downsampled)
-    ^^^^^^^^^^^^^^^^^^
-AttributeError: 'metavision_sdk_core.MostRecentTimestampBuffer' object has no attribute 'generate'
+    ts_buffer.generate_img_time_surface(downsampled)
+TypeError: generate_img_time_surface(): incompatible function arguments. The following argument types are supported:
+    1. (self: metavision_sdk_core.MostRecentTimestampBuffer, last_ts: int, delta_t: int, out: numpy.ndarray) -> None
+
+Invoked with: <metavision_sdk_core.MostRecentTimestampBuffer object at 0x78b862218830>, array([(565, 290, 1, 4057720), (336, 289, 1, 4057721),
+       (371, 301, 1, 4057721), ..., (388, 296, 0, 4127711),
+       (353, 283, 1, 4127715), (438, 282, 1, 4127719)],
+      dtype=[('x', '<i2'), ('y', '<i2'), ('p', '<i2'), ('t', '<i8')])
