@@ -1,0 +1,24 @@
+lau@lau:~/Desktop/rgb-event-labeling$ python3 sliding_window/timesurface/extract_samples_timesurface.py --window_ms 70; python3 sliding_window/timesurface/merge_timesurface.py --window_ms 70
+============================================================
+TIME SURFACE EXTRACTION (70ms windows, 50% overlap)
+============================================================
+Window duration : 70 ms
+Stride          : 35 ms
+Output dir      : /media/lau/T7/thesis/sliding_window_time/timesurface/70ms/batches
+
+
+rock/r_1  (rec_id=0)
+Traceback (most recent call last):
+  File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 168, in <module>
+    samples = process_recording(folder, window_us, stride_us)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 108, in process_recording
+    samples = extract_time_windows(events, t_start, t_end, window_us, stride_us)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 81, in extract_time_windows
+    samples.append(events_to_timesurface(window_events))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 50, in events_to_timesurface
+    ts_buffer.generate(downsampled)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'metavision_sdk_core.MostRecentTimestampBuffer' object has no attribute 'generate'
