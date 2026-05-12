@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 import numpy as np
 from metavision_core.event_io import EventsIterator
-from metavision_sdk_core import MostRecentTimestampBuffer
 from dotenv import load_dotenv
 import os
 
@@ -19,7 +18,6 @@ ORIG_WIDTH                 = 1280
 N_BINS                     = 5
 MAX_RECORDINGS_PER_GESTURE = 320
 
-# RQ2 offsets are fixed regardless of window size
 RQ2_OFFSETS_MS = [0, 20, 40, 60, 80, 100]
 
 GESTURE_TO_LABEL = {'rock': 0, 'paper': 1, 'scissor': 2}
@@ -67,25 +65,19 @@ def to_timesurface(events):
     x = (events['x'].astype(np.int32) * SENSOR_WIDTH  // ORIG_WIDTH)
     y = (events['y'].astype(np.int32) * SENSOR_HEIGHT // ORIG_HEIGHT)
     v = (x >= 0) & (x < SENSOR_WIDTH) & (y >= 0) & (y < SENSOR_HEIGHT)
-    downsampled = np.zeros(np.sum(v), dtype=[('x', np.int16), ('y', np.int16),
-                                              ('p', np.int16), ('t', np.int64)])
-    downsampled['x'] = x[v]
-    downsampled['y'] = y[v]
-    downsampled['p'] = events['p'][v]
-    downsampled['t'] = events['t'][v]
-    if len(downsampled) == 0:
+    x, y = x[v], y[v]
+    t = events['t'][v].astype(np.float64)
+    if len(t) == 0:
         return out
-    ts_buffer = MostRecentTimestampBuffer(SENSOR_HEIGHT, SENSOR_WIDTH)
-    ts_buffer.generate_img_time_surface(downsampled)
-    time_surface = ts_buffer.numpy().copy()
-    t_min = downsampled['t'].min()
-    t_max = downsampled['t'].max()
+    time_surface = np.zeros((SENSOR_HEIGHT, SENSOR_WIDTH), dtype=np.float64)
+    np.maximum.at(time_surface, (y, x), t)
+    t_min = t.min()
+    t_max = t.max()
+    mask = time_surface > 0
     if t_max > t_min:
-        time_surface = (time_surface.astype(np.float32) - t_min) / (t_max - t_min)
+        out[0][mask] = ((time_surface[mask] - t_min) / (t_max - t_min)).astype(np.float32)
     else:
-        time_surface = np.ones_like(time_surface, dtype=np.float32)
-    mask = (time_surface > 0)
-    out[0][mask] = time_surface[mask]
+        out[0][mask] = 1.0
     return out
 
 
@@ -165,10 +157,7 @@ if __name__ == "__main__":
     print(f"Window          : {args.window_ms}ms")
     print(f"RQ2 offsets     : {RQ2_OFFSETS_MS} ms\n")
 
-    # RQ1: single window of args.window_ms at t_initial
     rq1_data, rq1_labels, rq1_recids = [], [], []
-
-    # RQ2: args.window_ms window at each offset
     rq2_data, rq2_labels, rq2_offsets, rq2_recids = [], [], [], []
 
     for idx, rec_id in enumerate(sorted(test_rec_ids)):
@@ -184,14 +173,12 @@ if __name__ == "__main__":
         if all_events is None:
             continue
 
-        # RQ1: t_initial -> t_initial + window_ms
         sample = extract_window(all_events, t_initial, args.window_ms, repr_fn)
         if sample is not None:
             rq1_data.append(sample)
             rq1_labels.append(label)
             rq1_recids.append(rec_id)
 
-        # RQ2: t_initial + offset -> t_initial + offset + window_ms
         for off_ms in RQ2_OFFSETS_MS:
             t_start = t_initial + off_ms * 1_000
             sample  = extract_window(all_events, t_start, args.window_ms, repr_fn)

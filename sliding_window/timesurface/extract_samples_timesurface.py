@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 import numpy as np
 from metavision_core.event_io import EventsIterator
-from metavision_sdk_core import MostRecentTimestampBuffer
 from dotenv import load_dotenv
 import os
 
@@ -34,32 +33,25 @@ def events_to_timesurface(events):
     x = (events['x'].astype(np.int32) * SENSOR_WIDTH  // ORIG_WIDTH)
     y = (events['y'].astype(np.int32) * SENSOR_HEIGHT // ORIG_HEIGHT)
     valid = (x >= 0) & (x < SENSOR_WIDTH) & (y >= 0) & (y < SENSOR_HEIGHT)
+    x, y = x[valid], y[valid]
+    t = events['t'][valid].astype(np.float64)
 
-    downsampled = np.zeros(np.sum(valid), dtype=[
-        ('x', np.int16), ('y', np.int16), ('p', np.int16), ('t', np.int64)
-    ])
-    downsampled['x'] = x[valid]
-    downsampled['y'] = y[valid]
-    downsampled['p'] = events['p'][valid]
-    downsampled['t'] = events['t'][valid]
-
-    if len(downsampled) == 0:
+    if len(t) == 0:
         return np.zeros((1, SENSOR_HEIGHT, SENSOR_WIDTH), dtype=np.float32)
 
-    ts_buffer = MostRecentTimestampBuffer(SENSOR_HEIGHT, SENSOR_WIDTH)
-    ts_buffer.generate_img_time_surface(downsampled)
-    time_surface = ts_buffer.numpy().copy()
+    # most recent timestamp per pixel
+    time_surface = np.zeros((SENSOR_HEIGHT, SENSOR_WIDTH), dtype=np.float64)
+    np.maximum.at(time_surface, (y, x), t)
 
-    t_min = downsampled['t'].min()
-    t_max = downsampled['t'].max()
-
-    if t_max > t_min:
-        time_surface = (time_surface.astype(np.float32) - t_min) / (t_max - t_min)
-    else:
-        time_surface = np.ones_like(time_surface, dtype=np.float32)
+    t_min = t.min()
+    t_max = t.max()
 
     result = np.zeros((1, SENSOR_HEIGHT, SENSOR_WIDTH), dtype=np.float32)
-    result[0][time_surface > 0] = time_surface[time_surface > 0]
+    mask = time_surface > 0
+    if t_max > t_min:
+        result[0][mask] = ((time_surface[mask] - t_min) / (t_max - t_min)).astype(np.float32)
+    else:
+        result[0][mask] = 1.0
     return result
 
 
