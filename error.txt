@@ -1,20 +1,28 @@
-rock/r_1  (rec_id=0)
-Traceback (most recent call last):
-  File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 168, in <module>
-    samples = process_recording(folder, window_us, stride_us)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 108, in process_recording
-    samples = extract_time_windows(events, t_start, t_end, window_us, stride_us)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 81, in extract_time_windows
-    samples.append(events_to_timesurface(window_events))
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/lau/Desktop/rgb-event-labeling/sliding_window/timesurface/extract_samples_timesurface.py", line 50, in events_to_timesurface
-    ts_buffer.generate_img_time_surface(downsampled)
-TypeError: generate_img_time_surface(): incompatible function arguments. The following argument types are supported:
-    1. (self: metavision_sdk_core.MostRecentTimestampBuffer, last_ts: int, delta_t: int, out: numpy.ndarray) -> None
+============== EXTRACT AND MERGE
+for ms in 10 20 30 40 50 60 80 90 100; do
+  python3 sliding_window/timesurface/extract_samples_timesurface.py --window_ms $ms
+  python3 sliding_window/timesurface/merge_timesurface.py --window_ms $ms
+done
 
-Invoked with: <metavision_sdk_core.MostRecentTimestampBuffer object at 0x78b862218830>, array([(565, 290, 1, 4057720), (336, 289, 1, 4057721),
-       (371, 301, 1, 4057721), ..., (388, 296, 0, 4127711),
-       (353, 283, 1, 4127715), (438, 282, 1, 4127719)],
-      dtype=[('x', '<i2'), ('y', '<i2'), ('p', '<i2'), ('t', '<i8')])
+============== TRAINING
+
+for ms in 10 20 30 40 50 60 80 90 100; do
+  python3 sliding_window/timesurface/train_timesurface.py --window_ms $ms
+done
+
+============ TEST EXTRACT AND EVALUATE
+
+for ms in 10 20 30 40 50 60 80 90 100; do
+  python3 extract_test_samples.py --repr timesurface --window_ms $ms
+  python3 evaluate.py --repr timesurface --window_ms $ms
+done
+
+================================================================================================
+
+for ms in 10 20 30 40 50 60 70 80 90 100; do
+  python3 sliding_window/timesurface/extract_samples_timesurface.py --window_ms $ms
+  python3 sliding_window/timesurface/merge_timesurface.py --window_ms $ms
+  python3 sliding_window/timesurface/train_timesurface.py --window_ms $ms
+  python3 extract_test_samples.py --repr timesurface --window_ms $ms
+  python3 evaluate.py --repr timesurface --window_ms $ms
+done
