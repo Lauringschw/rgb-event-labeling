@@ -76,7 +76,8 @@ def to_timesurface(events):
     if len(downsampled) == 0:
         return out
     ts_buffer = MostRecentTimestampBuffer(SENSOR_HEIGHT, SENSOR_WIDTH)
-    ts_buffer.generate(downsampled)
+    for ev in downsampled:
+        ts_buffer.update_with_event(int(ev['x']), int(ev['y']), int(ev['t']))
     time_surface = ts_buffer.numpy().copy()
     t_min = downsampled['t'].min()
     t_max = downsampled['t'].max()
