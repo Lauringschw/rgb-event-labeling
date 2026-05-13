@@ -1,0 +1,4 @@
+repr_A,repr_B,n_A_right_B_wrong,n_A_wrong_B_right,p_value,significant_0.05
+histogram,voxel,5,8,0.581055,False
+histogram,timesurface,12,6,0.237885,False
+voxel,timesurface,17,8,0.107752,False
