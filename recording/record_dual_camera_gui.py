@@ -152,7 +152,7 @@ class RecordingGUI:
                                    command=self.stop_recording_manual, width=20, state='disabled')
         self.btn_stop.grid(row=0, column=1, padx=5, pady=5)
         
-        # Status display (moved after buttons)
+        # Status display
         self.status_text = tk.Text(main_frame, height=12, width=60, state='disabled', 
                                    bg='#f0f0f0', font=('Courier', 9))
         self.status_text.grid(row=4, column=0, columnspan=2, pady=10)
@@ -350,12 +350,12 @@ class RecordingGUI:
             self.i_events_stream.start()
             self.log("- Prophesee recording started")
             
-            # Reset state but DON'T start Basler yet
+            # Reset state !!!! DON'T start Basler yet
             self.frame_idx = 0
             self.basler_timestamps = []
             self.stop_recording = False
             
-            # Start countdown sequence (Basler will start during countdown)
+            # Start countdown sequence --> Basler will start during countdown
             self.progress.start()
             threading.Thread(target=self.countdown_sequence, daemon=True).start()
             
@@ -408,25 +408,21 @@ class RecordingGUI:
             self.log("\n⏱ Starting countdown...")
             time.sleep(1.0)
             
-            # Show "3"
             self.show_countdown("3", 'yellow')
             time.sleep(1.0)
             
-            # Show "2"
             self.show_countdown("2", 'orange')
             time.sleep(1.0)
             
-            # NOW start Basler (right before "1")
+            # start Basler (right before "1")
             self.camera_basler.StartGrabbing(pylon.GrabStrategy_OneByOne)
             self.recording_start_time = time.time()
             self.start_background_threads()
             self.log("- Basler recording started")
             
-            # Show "1"
             self.show_countdown("1", 'red')
             time.sleep(1.0)
             
-            # Show "GO"
             self.show_countdown("GO!", 'lime')
             self.log("GO! 🎯")
             
@@ -482,7 +478,7 @@ class RecordingGUI:
             if self.device is not None:
                 del self.device
                 self.device = None
-                time.sleep(0.5)  # Give it time to release
+                time.sleep(0.5)  # time to release
             
             self.log("- Prophesee stopped")
             
