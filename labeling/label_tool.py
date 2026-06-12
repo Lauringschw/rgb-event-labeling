@@ -385,5 +385,5 @@ class GestureLabelingTool:
 
 if __name__ == '__main__':
     base = Path(os.getenv("RECORDINGS_DIR")) / Path(os.getenv("DIR"))
-    tool = GestureLabelingTool(base / "rock" / "r_0")
+    tool = GestureLabelingTool(base / "paper" / "p_129")
     tool.show()
